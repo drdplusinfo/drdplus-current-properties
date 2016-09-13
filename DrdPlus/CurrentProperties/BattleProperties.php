@@ -8,7 +8,9 @@ use DrdPlus\Properties\Base\Strength;
 use DrdPlus\Properties\Combat\AttackNumber;
 use DrdPlus\Properties\Combat\DefenseNumber;
 use DrdPlus\Properties\Combat\DefenseNumberAgainstShooting;
+use DrdPlus\Properties\Combat\EncounterRange;
 use DrdPlus\Properties\Combat\FightNumber;
+use DrdPlus\Properties\Combat\LoadingInRounds;
 use DrdPlus\Properties\Combat\Shooting;
 use DrdPlus\Skills\Skills;
 use DrdPlus\Tables\Measurements\Wounds\WoundsBonus;
@@ -42,7 +44,6 @@ class BattleProperties extends StrictObject
     )
     {
         // TODO shield can be offhand weapon as well (-2 strength if weapon, two weapons skill counted for both weapons)
-        // TODO add modifiers from combat actions
         $this->currentProperties = $currentProperties;
         $this->combatActions = $combatActions;
         $this->skills = $skills;
@@ -50,7 +51,7 @@ class BattleProperties extends StrictObject
     }
 
     /**
-     * Final fight number including body state (level, fatigue, wounds, curses...) and used weapon.
+     * Final fight number including body state (level, fatigue, wounds, curses...), used weapon and action.
      *
      * @return FightNumber
      */
@@ -62,16 +63,15 @@ class BattleProperties extends StrictObject
             $this->currentProperties,
             $this->$this->currentProperties->getSize()
         );
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        $fightNumber->add($this->getFightNumberModifierWithWornArmaments());
 
-        return $fightNumber;
+        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+        return $fightNumber->add($this->getFightNumberModifier());
     }
 
     /**
      * @return int
      */
-    private function getFightNumberModifierWithWornArmaments()
+    private function getFightNumberModifier()
     {
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
         $fightNumberModifier =
@@ -116,23 +116,22 @@ class BattleProperties extends StrictObject
     }
 
     /**
-     * Final attack number including body state (level, fatigue, wounds, curses...) and used weapon.
+     * Final attack number including body state (level, fatigue, wounds, curses...), used weapon and action.
      *
      * @return AttackNumber
      */
     public function getAttackNumber()
     {
         $attackNumber = new AttackNumber($this->currentProperties->getAgility());
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        $attackNumber->add($this->getAttackNumberModifierWithWornWeapon());
 
-        return $attackNumber;
+        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+        return $attackNumber->add($this->getAttackNumberModifier());
     }
 
     /**
      * @return int
      */
-    private function getAttackNumberModifierWithWornWeapon()
+    private function getAttackNumberModifier()
     {
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
         return
@@ -149,17 +148,16 @@ class BattleProperties extends StrictObject
     }
 
     /**
-     * Final shooting (attack number for bows and crossbows) including body state (level, fatigue, wounds, curses...) and used weapon.
+     * Final shooting (attack number for bows and crossbows) including body state (level, fatigue, wounds, curses...), used weapon and action.
      *
      * @return Shooting
      */
     public function getShooting()
     {
         $shooting = new Shooting($this->currentProperties->getKnack());
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        $shooting->add($this->getAttackNumberModifierWithWornWeapon()); // all the modifications are very sme as for attack number
 
-        return $shooting;
+        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+        return $shooting->add($this->getAttackNumberModifier()); // all the modifications are very sme as for attack number
     }
 
     /**
@@ -171,10 +169,9 @@ class BattleProperties extends StrictObject
     public function getDefenseNumber()
     {
         $defenseNumber = new DefenseNumber($this->currentProperties->getAgility());
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        $defenseNumber->add($this->combatActions->getDefenseNumberModifier());
 
-        return $defenseNumber;
+        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+        return $defenseNumber->add($this->combatActions->getDefenseNumberModifier());
     }
 
     /**
@@ -186,10 +183,9 @@ class BattleProperties extends StrictObject
     public function getDefenseNumberAgainstFasterOpponent()
     {
         $defenseNumber = new DefenseNumber($this->currentProperties->getAgility());
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        $defenseNumber->add($this->combatActions->getDefenseNumberModifierAgainstFasterOpponent());
 
-        return $defenseNumber;
+        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+        return $defenseNumber->add($this->combatActions->getDefenseNumberModifierAgainstFasterOpponent());
     }
 
     /**
@@ -207,6 +203,9 @@ class BattleProperties extends StrictObject
         return $this->getDefenseNumber()->add($this->getCoverWithWornWeapon());
     }
 
+    /**
+     * @return int
+     */
     private function getCoverWithWornWeapon()
     {
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
@@ -242,6 +241,9 @@ class BattleProperties extends StrictObject
         return $this->getDefenseNumber()->add($this->getCoverWithWornShield());
     }
 
+    /**
+     * @return int
+     */
     private function getCoverWithWornShield()
     {
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
@@ -310,7 +312,7 @@ class BattleProperties extends StrictObject
     public function getBaseOfWoundsWithWornWeapon()
     {
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        $baseOfWounds = $this->tables->getBaseOfWoundsTable()->calculateBaseOfWounds(
+        $baseOfWoundsValue = $this->tables->getBaseOfWoundsTable()->calculateBaseOfWounds(
         /* sadly there has to be used standard strength, not that dependent on one/two-hands holding
          (appropriate bonus is expressed by simple +2, see bellow) */
             $this->currentProperties->getStrength()->getValue(),
@@ -321,26 +323,29 @@ class BattleProperties extends StrictObject
             $this->currentProperties->getWornShieldOrOffhandWeapon()
         )
         ) {
-            $baseOfWounds += 2;
+            $baseOfWoundsValue += 2;
         }
-        $baseOfWounds += $this->combatActions->getBaseOfWoundsModifier(
+        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+        $baseOfWoundsValue += $this->combatActions->getBaseOfWoundsModifier(
             $this->currentProperties->getWornWeapon(),
             $this->tables->getWeaponlikeTableByWeaponlikeCode($this->currentProperties->getWornWeapon())
         );
 
-        return new WoundsBonus($baseOfWounds, $this->tables->getWoundsTable());
+        return new WoundsBonus($baseOfWoundsValue, $this->tables->getWoundsTable());
     }
 
     /**
      * @param RangedWeaponCode $rangedWeaponCode
-     * @return int
+     * @return LoadingInRounds
      */
     public function getLoadingInRoundsWithRangedWeapon(RangedWeaponCode $rangedWeaponCode)
     {
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        return $this->tables->getArmourer()->getLoadingInRoundsByStrengthWithRangedWeapon(
-            $rangedWeaponCode,
-            $this->getStrengthForWornWeapon()
+        return new LoadingInRounds(
+            $this->tables->getArmourer()->getLoadingInRoundsByStrengthWithRangedWeapon(
+                $rangedWeaponCode,
+                $this->getStrengthForWornWeapon()
+            )
         );
     }
 
@@ -357,15 +362,17 @@ class BattleProperties extends StrictObject
 
     /**
      * @param RangedWeaponCode $rangedWeaponCode
-     * @return int
+     * @return EncounterRange
      */
     public function getEncounterRangeWithRangedWeapon(RangedWeaponCode $rangedWeaponCode)
     {
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        return $this->tables->getArmourer()->getEncounterRangeMalusByStrengthWithRangedWeapon(
-            $rangedWeaponCode,
-            $this->getStrengthForWornWeapon()
-        )
-        + $this->tables->getArmourer()->getRangeOfRangedWeapon($rangedWeaponCode);
+        return new EncounterRange(
+            $this->tables->getArmourer()->getEncounterRangeMalusByStrengthWithRangedWeapon(
+                $rangedWeaponCode,
+                $this->getStrengthForWornWeapon()
+            )
+            + $this->tables->getArmourer()->getRangeOfRangedWeapon($rangedWeaponCode)
+        );
     }
 }
