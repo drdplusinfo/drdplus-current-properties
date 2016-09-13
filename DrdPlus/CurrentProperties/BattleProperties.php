@@ -42,6 +42,7 @@ class BattleProperties extends StrictObject
     )
     {
         // TODO shield can be offhand weapon as well (-2 strength if weapon, two weapons skill counted for both weapons)
+        // TODO add modifiers from combat actions
         $this->currentProperties = $currentProperties;
         $this->combatActions = $combatActions;
         $this->skills = $skills;
@@ -99,18 +100,17 @@ class BattleProperties extends StrictObject
                 $this->tables->getArmourer()
             );
         if ($this->currentProperties->getWornShieldOrOffhandWeapon() instanceof ShieldCode) {
+            /** @var ShieldCode $shield */
+            $shield = $this->currentProperties->getWornShieldOrOffhandWeapon();
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-            $fightNumberModifier += $this->skills->getMalusToFightNumberWithProtective(
-            // TODO fix
-                $this->currentProperties->getWornShieldOrOffhandWeapon(),
-                $this->tables->getArmourer()
-            );
+            $fightNumberModifier += $this->skills->getMalusToFightNumberWithProtective($shield, $this->tables->getArmourer());
         } else { // if you hold offhand weapon, instead of shield, the malus from skill with that weapon type is used
             $fightNumberModifier += $this->skills->getMalusToFightNumberWithWeaponlike(
                 $this->currentProperties->getWornShieldOrOffhandWeapon(),
                 $this->tables->getMissingWeaponSkillTable()
             );
         }
+        $fightNumberModifier += $this->combatActions->getFightNumberModifier();
 
         return $fightNumberModifier;
     }
@@ -135,15 +135,17 @@ class BattleProperties extends StrictObject
     private function getAttackNumberModifierWithWornWeapon()
     {
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        return $this->skills->getMalusToAttackNumberWithWeaponlike(
-            $this->currentProperties->getWornWeapon(),
-            $this->tables->getMissingWeaponSkillTable()
-        )
-        + $this->tables->getArmourer()->getAttackNumberMalusByStrengthWithWeaponlike(
-            $this->currentProperties->getWornWeapon(),
-            $this->getStrengthForWornWeapon()
-        )
-        + $this->tables->getArmourer()->getOffensivenessOfWeaponlike($this->currentProperties->getWornWeapon());
+        return
+            $this->skills->getMalusToAttackNumberWithWeaponlike(
+                $this->currentProperties->getWornWeapon(),
+                $this->tables->getMissingWeaponSkillTable()
+            )
+            + $this->tables->getArmourer()->getAttackNumberMalusByStrengthWithWeaponlike(
+                $this->currentProperties->getWornWeapon(),
+                $this->getStrengthForWornWeapon()
+            )
+            + $this->tables->getArmourer()->getOffensivenessOfWeaponlike($this->currentProperties->getWornWeapon())
+            + $this->combatActions->getAttackNumberModifier();
     }
 
     /**
@@ -161,7 +163,6 @@ class BattleProperties extends StrictObject
     }
 
     /**
-     * Pure defense number is usable if not defending by weapon nor shield.
      * Note: armors are use to find out agility restriction, but they do not affect defense number directly.
      * Their protection is used after hit to lower final damage.
      *
@@ -169,7 +170,26 @@ class BattleProperties extends StrictObject
      */
     public function getDefenseNumber()
     {
-        return new DefenseNumber($this->currentProperties->getAgility());
+        $defenseNumber = new DefenseNumber($this->currentProperties->getAgility());
+        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+        $defenseNumber->add($this->combatActions->getDefenseNumberModifier());
+
+        return $defenseNumber;
+    }
+
+    /**
+     * Note: armors are use to find out agility restriction, but they do not affect defense number directly.
+     * Their protection is used after hit to lower final damage.
+     *
+     * @return DefenseNumber
+     */
+    public function getDefenseNumberAgainstFasterOpponent()
+    {
+        $defenseNumber = new DefenseNumber($this->currentProperties->getAgility());
+        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+        $defenseNumber->add($this->combatActions->getDefenseNumberModifierAgainstFasterOpponent());
+
+        return $defenseNumber;
     }
 
     /**
@@ -200,6 +220,15 @@ class BattleProperties extends StrictObject
                 $this->tables->getMissingWeaponSkillTable()
             )
             + $this->tables->getArmourer()->getCoverOfWeaponlike($this->currentProperties->getWornWeapon());
+    }
+
+    /**
+     * @return DefenseNumber
+     */
+    public function getDefenseNumberWithCoverByWeaponAgainstFasterOpponent()
+    {
+        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+        return $this->getDefenseNumberAgainstFasterOpponent()->add($this->getCoverWithWornWeapon());
     }
 
     /**
@@ -240,14 +269,34 @@ class BattleProperties extends StrictObject
     }
 
     /**
+     * @return DefenseNumber
+     */
+    public function getDefenseNumberWithCoverByShieldAgainstFasterOpponent()
+    {
+        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+        return $this->getDefenseNumberAgainstFasterOpponent()->add($this->getCoverWithWornShield());
+    }
+
+    /**
      * Shield cover is always counted to your defense against shooting, even if you does not know about attack
      * (of course only if it has a sense - shield hardly covers your back if you hold it in hand).
      *
      * @return DefenseNumberAgainstShooting
      */
-    public function getDefenseAgainstShooting()
+    public function getDefenseNumberAgainstShooting()
     {
         return new DefenseNumberAgainstShooting($this->getDefenseNumberWithCoverByShield(), $this->currentProperties->getSize());
+    }
+
+    /**
+     * @return DefenseNumberAgainstShooting
+     */
+    public function getDefenseNumberAgainstShootingAndFasterOpponent()
+    {
+        return new DefenseNumberAgainstShooting(
+            $this->getDefenseNumberWithCoverByShieldAgainstFasterOpponent(),
+            $this->currentProperties->getSize()
+        );
     }
 
     /**
@@ -269,10 +318,15 @@ class BattleProperties extends StrictObject
         );
         if ($this->currentProperties->holdsOneHandedWeaponlikeByBothHands(
             $this->currentProperties->getWornWeapon(),
-            $this->currentProperties->getWornShieldOrOffhandWeapon())
+            $this->currentProperties->getWornShieldOrOffhandWeapon()
+        )
         ) {
             $baseOfWounds += 2;
         }
+        $baseOfWounds += $this->combatActions->getBaseOfWoundsModifier(
+            $this->currentProperties->getWornWeapon(),
+            $this->tables->getWeaponlikeTableByWeaponlikeCode($this->currentProperties->getWornWeapon())
+        );
 
         return new WoundsBonus($baseOfWounds, $this->tables->getWoundsTable());
     }
