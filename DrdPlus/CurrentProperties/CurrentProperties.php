@@ -4,9 +4,6 @@ namespace DrdPlus\CurrentProperties;
 use DrdPlus\Codes\Armaments\ArmamentCode;
 use DrdPlus\Codes\Armaments\BodyArmorCode;
 use DrdPlus\Codes\Armaments\HelmCode;
-use DrdPlus\Codes\Armaments\MeleeWeaponCode;
-use DrdPlus\Codes\Armaments\ShieldCode;
-use DrdPlus\Codes\Armaments\WeaponlikeCode;
 use DrdPlus\Codes\RaceCode;
 use DrdPlus\Codes\SubRaceCode;
 use DrdPlus\Health\Health;
@@ -50,10 +47,6 @@ class CurrentProperties extends StrictObject implements BasePropertiesInterface
     private $wornBodyArmor;
     /** @var HelmCode */
     private $wornHelm;
-    /** @var WeaponlikeCode */
-    private $mainHandWeaponOrShield;
-    /** @var WeaponlikeCode */
-    private $offHandWeaponOrShield;
     /** @var Size */
     private $size;
     /** @var Profession */
@@ -78,8 +71,6 @@ class CurrentProperties extends StrictObject implements BasePropertiesInterface
      * @param SubRaceCode $subRaceCode
      * @param BodyArmorCode $wornBodyArmor for no armor use \DrdPlus\Codes\Armaments\BodyArmorCode::WITHOUT_ARMOR
      * @param HelmCode $wornHelm for no helm use \DrdPlus\Codes\Armaments\HelmCode::WITHOUT_HELM
-     * @param WeaponlikeCode $mainHandWeaponOrShield
-     * @param WeaponlikeCode $offHandWeaponOrShield
      * @param CargoWeight $cargoWeight
      * @param Tables $tables
      * @throws Exceptions\CanNotUseArmamentBecauseOfMissingStrength
@@ -93,8 +84,6 @@ class CurrentProperties extends StrictObject implements BasePropertiesInterface
         SubRaceCode $subRaceCode,
         BodyArmorCode $wornBodyArmor,
         HelmCode $wornHelm,
-        WeaponlikeCode $mainHandWeaponOrShield,
-        WeaponlikeCode $offHandWeaponOrShield,
         CargoWeight $cargoWeight,
         Tables $tables
     )
@@ -111,19 +100,6 @@ class CurrentProperties extends StrictObject implements BasePropertiesInterface
         $this->wornBodyArmor = $wornBodyArmor;
         $this->guardArmamentWearable($wornHelm, $this->getStrength());
         $this->wornHelm = $wornHelm;
-        $this->guardArmamentWearable(
-            $mainHandWeaponOrShield,
-            $this->getStrengthForMainHand(
-                $mainHandWeaponOrShield,
-                $offHandWeaponOrShield // what you hold in offhand
-            )
-        );
-        $this->mainHandWeaponOrShield = $mainHandWeaponOrShield;
-        $this->guardArmamentWearable(
-            $offHandWeaponOrShield,
-            $this->getStrengthForOffhand($offHandWeaponOrShield, $mainHandWeaponOrShield)
-        );
-        $this->offHandWeaponOrShield = $offHandWeaponOrShield;
     }
 
     /**
@@ -142,64 +118,6 @@ class CurrentProperties extends StrictObject implements BasePropertiesInterface
     }
 
     /**
-     * If one-handed shield is kept by both hands, the required strength for weapon in is lower = fighter strength is considered higher
-     * see details in PPH page 93, left column
-     *
-     * @param WeaponlikeCode $mainHand
-     * @param WeaponlikeCode $offHand
-     * @return Strength
-     */
-    public function getStrengthForMainHand(WeaponlikeCode $mainHand, WeaponlikeCode $offHand)
-    {
-        if (!$this->holdsOneHandedWeaponlikeByBothHands($mainHand, $offHand)) {
-            return $this->getStrength();
-        }
-
-        // If one-handed is kept by both hands, the required strength is lower (workaround for conditioned increment of fighter strength)
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        return $this->getStrength()->add(2);
-    }
-
-    /**
-     * If one-handed shield is kept by both hands, the required strength for weapon in is lower = fighter strength is considered higher
-     * see details in PPH page 93, left column
-     *
-     * @param WeaponlikeCode $offHand
-     * @param WeaponlikeCode $mainHand
-     * @return Strength
-     */
-    public function getStrengthForOffhand(WeaponlikeCode $offHand, WeaponlikeCode $mainHand)
-    {
-        if (!$this->holdsOneHandedWeaponlikeByBothHands($mainHand, $offHand)) {
-            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-            return $this->getStrength()->sub(-2); // off hand has a malus
-        }
-
-        // If one-handed is kept by both hands, the required strength is lower (workaround for conditioned increment of fighter strength)
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        return $this->getStrength()->add(2);
-    }
-
-    /**
-     * Second hand is empty and you can hold single-hand weapon or shield by both hands (if has length at least 1).
-     *
-     * @param WeaponlikeCode $mainHand
-     * @param WeaponlikeCode $offHand
-     * @return bool
-     */
-    public function holdsOneHandedWeaponlikeByBothHands(WeaponlikeCode $mainHand, WeaponlikeCode $offHand)
-    {
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        return
-            $mainHand->isMeleeArmament()
-            && (($offHand instanceof ShieldCode && $offHand->isWithoutShield())
-                || $offHand instanceof MeleeWeaponCode && $offHand->isUnarmed()
-            )
-            && !$this->tables->getArmourer()->isTwoHanded($mainHand)
-            && $this->tables->getArmourer()->getLengthOfWeaponlike($mainHand) >= 1;
-    }
-
-    /**
      * @return BodyArmorCode
      */
     public function getWornBodyArmor()
@@ -213,27 +131,6 @@ class CurrentProperties extends StrictObject implements BasePropertiesInterface
     public function getWornHelm()
     {
         return $this->wornHelm;
-    }
-
-    /**
-     * This is probably weapon, but in case of emergency also shield can be used for smash.
-     *
-     * @return WeaponlikeCode
-     */
-    public function getMainHandWeaponOrShield()
-    {
-        return $this->mainHandWeaponOrShield;
-    }
-
-    /**
-     * This is probably shield or empty hand (for two-hand weapon or both-hands holding of one-hand weapon),
-     * but skilled, crazy or despair individuals can use also a weapon as their offhand.
-     *
-     * @return WeaponlikeCode
-     */
-    public function getOffHandWeaponOrShield()
-    {
-        return $this->offHandWeaponOrShield;
     }
 
     /**
@@ -283,6 +180,24 @@ class CurrentProperties extends StrictObject implements BasePropertiesInterface
     {
         return $this->propertiesByLevels->getStrength();
     }
+
+    /**
+     * @return Strength
+     */
+    public function getStrengthForMainHandOnly()
+    {
+        return $this->getStrength();
+    }
+
+    /**
+     * @return Strength
+     */
+    public function getStrengthForOffhandOnly()
+    {
+        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+        return $this->getStrength()->sub(-2); // offhand has a malus to strength (try to carry you purchase in offhand sometimes...)
+    }
+
 
     /**
      * @return Agility

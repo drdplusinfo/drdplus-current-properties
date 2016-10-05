@@ -19,23 +19,35 @@ class CombatActions extends StrictObject implements \IteratorAggregate
     private $combatActionCodes;
 
     /**
-     * @param array|CombatActionCode[] $combatActionCodes
+     * If you want numbers for more combinations than is possible in a single round (for complete list of modifications for example)
+     * simply create more instances with different actions.
+     *
+     * @param array|string[]|CombatActionCode[] $combatActionCodes
      * @param CombatActionsCompatibilityTable $combatActionsCompatibilityTable
-     * @throws \LogicException
+     * @throws \DrdPlus\CurrentProperties\Exceptions\InvalidCombatActionFormat
+     * @throws \DrdPlus\CurrentProperties\Exceptions\IncompatibleCombatActions
      */
     public function __construct(
         array $combatActionCodes,
         CombatActionsCompatibilityTable $combatActionsCompatibilityTable
     )
     {
-        $this->validateActionCodesCoWork($combatActionCodes, $combatActionsCompatibilityTable);
-        $this->combatActionCodes = $combatActionCodes;
+        $sanitizedCombatActionCodes = [];
+        foreach ($combatActionCodes as $combatActionCode) {
+            $sanitizedCombatActionCodes[] = CombatActionCode::getIt($combatActionCode);
+        }
+        $this->validateActionCodesCoWork($sanitizedCombatActionCodes, $combatActionsCompatibilityTable);
+        $this->combatActionCodes = [];
+        foreach ($sanitizedCombatActionCodes as $combatActionCode) {
+            $this->combatActionCodes[$combatActionCode->getValue()] = $combatActionCode;
+        }
     }
 
     /**
      * @param array|CombatActionCode[] $combatActionCodes
      * @param CombatActionsCompatibilityTable $combatActionsCompatibilityTable
-     * @throws \LogicException
+     * @throws \DrdPlus\CurrentProperties\Exceptions\InvalidCombatActionFormat
+     * @throws \DrdPlus\CurrentProperties\Exceptions\IncompatibleCombatActions
      */
     private function validateActionCodesCoWork(
         array $combatActionCodes,
@@ -48,7 +60,8 @@ class CombatActions extends StrictObject implements \IteratorAggregate
 
     /**
      * @param array|CombatActionCode[] $combatActionCodes
-     * @throws \LogicException
+     * @throws \DrdPlus\CurrentProperties\Exceptions\InvalidCombatActionFormat
+     * @throws \DrdPlus\CurrentProperties\Exceptions\IncompatibleCombatActions
      */
     private function guardUsableForSameAttackTypes(array $combatActionCodes)
     {
@@ -56,7 +69,7 @@ class CombatActions extends StrictObject implements \IteratorAggregate
         $forRangedOnly = [];
         foreach ($combatActionCodes as $combatActionCode) {
             if (!($combatActionCode instanceof CombatActionCode)) {
-                throw new \LogicException(
+                throw new Exceptions\InvalidCombatActionFormat(
                     'Expected ' . CombatActionCode::class . ', got ' . ValueDescriber::describe($combatActionCode)
                 );
             }
@@ -68,7 +81,7 @@ class CombatActions extends StrictObject implements \IteratorAggregate
             }
         }
         if (count($forMeleeOnly) > 0 && count($forRangedOnly) > 0) {
-            throw new \LogicException(
+            throw new Exceptions\IncompatibleCombatActions(
                 'There are combat actions usable only for melee and another only for ranged, which prohibits their joining;'
                 . ' melee: ' . implode(', ', $forMeleeOnly) . '; ranged: ' . implode(', ', $forRangedOnly)
             );
@@ -78,7 +91,7 @@ class CombatActions extends StrictObject implements \IteratorAggregate
     /**
      * @param array|CombatActionCode[] $combatActionCodes
      * @param CombatActionsCompatibilityTable $combatActionsCompatibilityTable
-     * @throws \LogicException
+     * @throws \DrdPlus\CurrentProperties\Exceptions\IncompatibleCombatActions
      */
     private function checkIncompatibleActions(
         array $combatActionCodes,
@@ -95,11 +108,16 @@ class CombatActions extends StrictObject implements \IteratorAggregate
             }
         }
         if ($incompatible) {
-            throw new \LogicException(
+            throw new Exceptions\IncompatibleCombatActions(
                 'There are incompatible combat actions: '
-                . implode(', ', array_map(function (array $incompatiblePair) {
-                        return $incompatiblePair[1] . ' with ' . $incompatiblePair[1];
-                    }, $incompatible)
+                . implode(
+                    ', ',
+                    array_map(
+                        function (array $incompatiblePair) {
+                            return $incompatiblePair[1] . ' with ' . $incompatiblePair[1];
+                        },
+                        $incompatible
+                    )
                 )
             );
         }
@@ -231,7 +249,7 @@ class CombatActions extends StrictObject implements \IteratorAggregate
      * with malus -4 to defense number and without weapon.
      * Note about PUTTING OUT HARDLY ACCESSIBLE ITEM: whenever someone attacks you before you put out desired item,
      * than you have to choose between canceling of PUT OUT... and continuing with malus -4 to defense number and without weapon,
-     * Note about ATTACKED FROM BEHIND: if you are surprised then you can not defense yourself and your defense roll is automatically zero.
+     * Note about ATTACKED FROM BEHIND: if you are also surprised, then you can not defense yourself and your defense roll is automatically zero.
      *
      * @see getDefenseNumberModifierAgainstFasterOpponent
      *
@@ -279,9 +297,14 @@ class CombatActions extends StrictObject implements \IteratorAggregate
         return $defenseNumber;
     }
 
+    /**
+     * Against those opponents acting faster then you, you can have significantly lower defense because they catch you unprepared.
+     *
+     * @return int
+     */
     public function getDefenseNumberModifierAgainstFasterOpponent()
     {
-        $defenseNumber = self::getDefenseNumberModifier();
+        $defenseNumber = $this->getDefenseNumberModifier();
         foreach ($this->combatActionCodes as $combatActionCode) {
             if ($combatActionCode->getValue() === CombatActionCode::RUN) {
                 $defenseNumber -= 4;
@@ -290,9 +313,13 @@ class CombatActions extends StrictObject implements \IteratorAggregate
                 $defenseNumber -= 4;
             }
         }
+
+        return $defenseNumber;
     }
 
     /**
+     * In case of MOVE or RUN there is significant speed increment.
+     *
      * @return int
      */
     public function getSpeedBonus()
@@ -310,5 +337,184 @@ class CombatActions extends StrictObject implements \IteratorAggregate
         }
 
         return $speedBonus;
+    }
+
+    /**
+     * @param string|CombatActionCode $combatActionCode
+     * @return bool
+     */
+    public function hasAction($combatActionCode)
+    {
+        return array_key_exists((string)$combatActionCode, $this->combatActionCodes);
+    }
+
+    /**
+     * @param array|string[]|CombatActionCode[] $combatActionCodes
+     * @return bool
+     */
+    public function hasAllThose(array $combatActionCodes)
+    {
+        foreach ($combatActionCodes as $combatActionCode) {
+            if (!$this->hasAction($combatActionCode)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array|string[]|CombatActionCode[] $combatActionCodes
+     * @return bool
+     */
+    public function hasAtLeastOneOf(array $combatActionCodes)
+    {
+        foreach ($combatActionCodes as $combatActionCode) {
+            if ($this->hasAction($combatActionCode)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Throws away known actions and returns just unknown.
+     * Returned format of combat actions is kept - the same as given (string or CombatActionCode object).
+     *
+     * @param array|string[] CombatActionCode [] $combatActionCodes
+     * @return array|string[]|CombatActionCode[]
+     */
+    public function filterThoseNotHave(array $combatActionCodes)
+    {
+        $notHave = [];
+        foreach ($combatActionCodes as $combatActionCode) {
+            if (!$this->hasAction($combatActionCode)) {
+                $notHave[(string)$combatActionCode] = $combatActionCode;
+            }
+        }
+
+        return $notHave;
+    }
+
+    /**
+     * Gives list of all combat actions separated,by,comma
+     *
+     * @return string
+     */
+    public function __toString()
+    {
+        return implode(
+            ',',
+            array_map(
+                function (CombatActionCode $combatActionCode) {
+                    return $combatActionCode->getValue();
+                },
+                $this->getIterator()->getArrayCopy()
+            )
+        );
+    }
+
+    /**
+     * Uses two hands for defense, not matter if with single weapon or two weapons?
+     *
+     * @return bool
+     */
+    public function defensesByTwoHands()
+    {
+        return $this->hasAtLeastOneOf([
+            CombatActionCode::TWO_HANDS_DEFENSE,
+        ]);
+    }
+
+    /**
+     * Uses two hands for attack, not matter if with single weapon or two weapons?
+     *
+     * @return bool
+     */
+    public function attacksByTwoHands()
+    {
+        return $this->hasAtLeastOneOf([
+            CombatActionCode::TWO_HANDS_MELEE_ATTACK,
+            CombatActionCode::TWO_HANDS_RANGED_ATTACK,
+        ]);
+    }
+
+    /**
+     * Is the offhand free for non-attack action?
+     *
+     * @return bool
+     */
+    public function attacksByMainHandOnly()
+    {
+        return $this->hasAtLeastOneOf([
+            CombatActionCode::MAIN_HAND_ONLY_MELEE_ATTACK,
+            CombatActionCode::MAIN_HAND_ONLY_RANGED_ATTACK,
+        ]);
+    }
+
+    /**
+     * Is the main hand free for non-attack action?
+     *
+     * @return bool
+     */
+    public function attacksByOffhandOnly()
+    {
+        return $this->hasAtLeastOneOf([
+            CombatActionCode::OFFHAND_ONLY_MELEE_ATTACK,
+            CombatActionCode::OFFHAND_ONLY_RANGED_ATTACK,
+        ]);
+    }
+
+    /**
+     * Is the main hand in use because of ranged combat?
+     *
+     * @return bool
+     */
+    public function attacksByRangeWithMainHand()
+    {
+        return $this->hasAtLeastOneOf([
+            CombatActionCode::TWO_HANDS_RANGED_ATTACK,
+            CombatActionCode::MAIN_HAND_ONLY_RANGED_ATTACK,
+        ]);
+    }
+
+    /**
+     * Is the offhand in use because of ranged combat?
+     *
+     * @return bool
+     */
+    public function attacksByRangeWithOffhand()
+    {
+        return $this->hasAtLeastOneOf([
+            CombatActionCode::TWO_HANDS_RANGED_ATTACK,
+            CombatActionCode::OFFHAND_ONLY_RANGED_ATTACK,
+        ]);
+    }
+
+    /**
+     * Is the main hand in use because of melee combat?
+     *
+     * @return bool
+     */
+    public function attacksByMeleeWithMainHand()
+    {
+        return $this->hasAtLeastOneOf([
+            CombatActionCode::TWO_HANDS_MELEE_ATTACK,
+            CombatActionCode::MAIN_HAND_ONLY_MELEE_ATTACK,
+        ]);
+    }
+
+    /**
+     * Is the offhand in use because of melee combat?
+     *
+     * @return bool
+     */
+    public function attacksByMeleeWithOffhand()
+    {
+        return $this->hasAtLeastOneOf([
+            CombatActionCode::TWO_HANDS_MELEE_ATTACK,
+            CombatActionCode::OFFHAND_ONLY_MELEE_ATTACK,
+        ]);
     }
 }

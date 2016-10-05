@@ -13,7 +13,9 @@ class CombatActionsTest extends TestWithMockery
     public function I_can_use_it()
     {
         $combatActions = new CombatActions(
-            $inputActions = [CombatActionCode::getIt(CombatActionCode::BLINDFOLD_FIGHT)],
+            $inputActions = [
+                CombatActionCode::BLINDFOLD_FIGHT => CombatActionCode::getIt(CombatActionCode::BLINDFOLD_FIGHT),
+            ],
             $this->createCombatActionsCompatibilityTable($inputActions, true /* compatible */)
         );
         self::assertCount(1, $combatActions);
