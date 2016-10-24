@@ -11,7 +11,7 @@ use DrdPlus\Tables\Armaments\Partials\WeaponlikeTable;
 use Granam\Strict\Object\StrictObject;
 use Granam\Tools\ValueDescriber;
 
-class CombatActions extends StrictObject implements \IteratorAggregate
+class CombatActions extends StrictObject implements \IteratorAggregate, \Countable
 {
     /**
      * @var array|CombatActionCode[]
@@ -19,8 +19,8 @@ class CombatActions extends StrictObject implements \IteratorAggregate
     private $combatActionCodes;
 
     /**
-     * If you want numbers for more combinations than is possible in a single round (for complete list of modifications for example)
-     * simply create more instances with different actions.
+     * If you want numbers for more combinations than is possible in a single round (for complete list of modifications
+     * for example) simply create more instances with different actions.
      *
      * @param array|string[]|CombatActionCode[] $combatActionCodes
      * @param CombatActionsCompatibilityTable $combatActionsCompatibilityTable
@@ -142,6 +142,14 @@ class CombatActions extends StrictObject implements \IteratorAggregate
     /**
      * @return int
      */
+    public function count()
+    {
+        return count($this->combatActionCodes);
+    }
+
+    /**
+     * @return int
+     */
     public function getFightNumberModifier()
     {
         $fightNumber = 0;
@@ -194,6 +202,7 @@ class CombatActions extends StrictObject implements \IteratorAggregate
                 $attackNumber += 2;
             }
             if ($combatActionCode->getValue() === RangedCombatActionCode::AIMED_SHOT) {
+                /** @noinspection PrefixedIncDecrementEquivalentInspection */
                 $attackNumber += 1; // you have to sum those bonuses on attack after aiming yourself
             }
             if ($combatActionCode->getValue() === CombatActionCode::PUT_OUT_EASILY_ACCESSIBLE_ITEM) {
@@ -212,6 +221,7 @@ class CombatActions extends StrictObject implements \IteratorAggregate
                 $attackNumber -= 6;
             }
             if ($combatActionCode->getValue() === CombatActionCode::FIGHT_IN_REDUCED_VISIBILITY) {
+                /** @noinspection PrefixedIncDecrementEquivalentInspection */
                 $attackNumber -= 1;
             }
         }
@@ -230,26 +240,24 @@ class CombatActions extends StrictObject implements \IteratorAggregate
     )
     {
         $baseOfWounds = 0;
-        foreach ($this->combatActionCodes as $combatActionCode) {
-            if ($combatActionCode->getValue() === MeleeCombatActionCode::HEADLESS_ATTACK) {
-                $baseOfWounds += 2;
-            }
-            if ($combatActionCode->getValue() === MeleeCombatActionCode::FLAT_ATTACK
-                && $weaponlikeTable->getWoundsTypeOf($weaponlikeCode) !== WoundTypeCode::CRUSH
-            ) {
-                $baseOfWounds -= 6;
-            }
+        if ($this->hasAction(MeleeCombatActionCode::HEADLESS_ATTACK)) {
+            $baseOfWounds += 2;
+        }
+        if ($this->hasAction(MeleeCombatActionCode::FLAT_ATTACK)
+            && $weaponlikeTable->getWoundsTypeOf($weaponlikeCode) !== WoundTypeCode::CRUSH
+        ) {
+            $baseOfWounds -= 6;
         }
 
         return $baseOfWounds;
     }
 
     /**
-     * Note about RUN: if someone attacks you before you RUN, than you have to choose between canceling of RUN and running
-     * with malus -4 to defense number and without weapon.
-     * Note about PUTTING OUT HARDLY ACCESSIBLE ITEM: whenever someone attacks you before you put out desired item,
-     * than you have to choose between canceling of PUT OUT... and continuing with malus -4 to defense number and without weapon,
-     * Note about ATTACKED FROM BEHIND: if you are also surprised, then you can not defense yourself and your defense roll is automatically zero.
+     * Note about RUN: if someone attacks you before you RUN, than you have to choose between canceling of RUN and
+     * running with malus -4 to defense number and without weapon. Note about PUTTING OUT HARDLY ACCESSIBLE ITEM:
+     * whenever someone attacks you before you put out desired item, than you have to choose between canceling of PUT
+     * OUT... and continuing with malus -4 to defense number and without weapon, Note about ATTACKED FROM BEHIND: if
+     * you are also surprised, then you can not defense yourself and your defense roll is automatically zero.
      *
      * @see getDefenseNumberModifierAgainstFasterOpponent
      *
@@ -266,9 +274,11 @@ class CombatActions extends StrictObject implements \IteratorAggregate
                 $defenseNumber += 2;
             }
             if ($combatActionCode->getValue() === MeleeCombatActionCode::PRESSURE) {
+                /** @noinspection PrefixedIncDecrementEquivalentInspection */
                 $defenseNumber -= 1;
             }
             if ($combatActionCode->getValue() === MeleeCombatActionCode::RETREAT) {
+                /** @noinspection PrefixedIncDecrementEquivalentInspection */
                 $defenseNumber += 1;
             }
             if ($combatActionCode->getValue() === CombatActionCode::LAYING) {
@@ -298,7 +308,8 @@ class CombatActions extends StrictObject implements \IteratorAggregate
     }
 
     /**
-     * Against those opponents acting faster then you, you can have significantly lower defense because they catch you unprepared.
+     * Against those opponents acting faster then you, you can have significantly lower defense because they catch you
+     * unprepared.
      *
      * @return int
      */
@@ -416,7 +427,7 @@ class CombatActions extends StrictObject implements \IteratorAggregate
     }
 
     /**
-     * Uses two hands for defense, not matter if with single weapon or two weapons?
+     * Uses two hands for defense, not matter if with single weapon-like or two weapons or shields.
      *
      * @return bool
      */
@@ -428,7 +439,8 @@ class CombatActions extends StrictObject implements \IteratorAggregate
     }
 
     /**
-     * Uses two hands for attack, not matter if with single weapon or two weapons?
+     * Uses two hands for attack (ranged or melee), not matter if with single weapon or shield or two weapons or
+     * shields.
      *
      * @return bool
      */
@@ -441,7 +453,17 @@ class CombatActions extends StrictObject implements \IteratorAggregate
     }
 
     /**
-     * Is the offhand free for non-attack action?
+     * Uses two hands for attack or defense, not matter if with single weapon or shield or two weapons or shields.
+     *
+     * @return bool
+     */
+    public function fightsByTwoHands()
+    {
+        return $this->attacksByTwoHands() || $this->defensesByTwoHands();
+    }
+
+    /**
+     * In other words if is the offhand free for non-attack action.
      *
      * @return bool
      */
@@ -451,6 +473,22 @@ class CombatActions extends StrictObject implements \IteratorAggregate
             CombatActionCode::MAIN_HAND_ONLY_MELEE_ATTACK,
             CombatActionCode::MAIN_HAND_ONLY_RANGED_ATTACK,
         ]);
+    }
+
+    /**
+     * @return bool
+     */
+    public function defensesByMainHandOnly()
+    {
+        return $this->hasAction(CombatActionCode::MAIN_HAND_ONLY_DEFENSE);
+    }
+
+    /**
+     * @return bool
+     */
+    public function fightsByMainHandOnly()
+    {
+        return $this->attacksByMainHandOnly() || $this->defensesByMainHandOnly();
     }
 
     /**
@@ -467,54 +505,18 @@ class CombatActions extends StrictObject implements \IteratorAggregate
     }
 
     /**
-     * Is the main hand in use because of ranged combat?
-     *
      * @return bool
      */
-    public function attacksByRangeWithMainHand()
+    public function defensesByOffhandOnly()
     {
-        return $this->hasAtLeastOneOf([
-            CombatActionCode::TWO_HANDS_RANGED_ATTACK,
-            CombatActionCode::MAIN_HAND_ONLY_RANGED_ATTACK,
-        ]);
+        return $this->hasAtLeastOneOf([CombatActionCode::OFFHAND_ONLY_DEFENSE]);
     }
 
     /**
-     * Is the offhand in use because of ranged combat?
-     *
      * @return bool
      */
-    public function attacksByRangeWithOffhand()
+    public function fightsByOffhandOnly()
     {
-        return $this->hasAtLeastOneOf([
-            CombatActionCode::TWO_HANDS_RANGED_ATTACK,
-            CombatActionCode::OFFHAND_ONLY_RANGED_ATTACK,
-        ]);
-    }
-
-    /**
-     * Is the main hand in use because of melee combat?
-     *
-     * @return bool
-     */
-    public function attacksByMeleeWithMainHand()
-    {
-        return $this->hasAtLeastOneOf([
-            CombatActionCode::TWO_HANDS_MELEE_ATTACK,
-            CombatActionCode::MAIN_HAND_ONLY_MELEE_ATTACK,
-        ]);
-    }
-
-    /**
-     * Is the offhand in use because of melee combat?
-     *
-     * @return bool
-     */
-    public function attacksByMeleeWithOffhand()
-    {
-        return $this->hasAtLeastOneOf([
-            CombatActionCode::TWO_HANDS_MELEE_ATTACK,
-            CombatActionCode::OFFHAND_ONLY_MELEE_ATTACK,
-        ]);
+        return $this->attacksByOffhandOnly() || $this->defensesByOffhandOnly();
     }
 }
