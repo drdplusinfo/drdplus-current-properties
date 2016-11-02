@@ -1,10 +1,12 @@
 <?php
 namespace DrdPlus\CurrentProperties;
 
+use DrdPlus\Codes\Armaments\MeleeWeaponCode;
 use DrdPlus\Codes\Armaments\RangedWeaponCode;
 use DrdPlus\Codes\Armaments\ShieldCode;
 use DrdPlus\Codes\Armaments\WeaponCode;
 use DrdPlus\Codes\Armaments\WeaponlikeCode;
+use DrdPlus\Codes\ItemHoldingCode;
 use DrdPlus\Codes\ProfessionCode;
 use DrdPlus\Properties\Base\Strength;
 use DrdPlus\Properties\Combat\Attack;
@@ -26,29 +28,27 @@ use DrdPlus\Tables\Measurements\Wounds\WoundsBonus;
 use DrdPlus\Tables\Tables;
 use Granam\Strict\Object\StrictObject;
 
-class BattleProperties extends StrictObject
+class FightProperties extends StrictObject
 {
-    /** @var CurrentProperties */
-    private $currentProperties;
     /** @var CombatActions */
     private $combatActions;
-    /** @var WeaponlikeCode */
-    private $weaponOrShieldInMainHand;
-    /** @var WeaponlikeCode */
-    private $weaponOrShieldInOffhand;
-    /** @var Skills */
-    private $skills;
-    /** @var Tables */
-    private $tables;
 
     /**
+     * Warning: to define a weapon used by two hands, do NOT set the second weapon (provide NULL).
+     * If you will provide @see MeleeWeaponCode::HAND or similar "empty" hand, it will be considered as a standard
+     * weapon.
+     * Whenever you provide two weapons for attack or defense then two weapons fighting will be taken into account,
+     * even if you give two "empty" hands like @see MeleeWeaponCode::LEG it is taken as two weapons.
+     *
      * @param CurrentProperties $currentProperties
      * @param CombatActions $combatActions
-     * @param WeaponlikeCode $weaponOrShieldInMainHand
-     * @param WeaponlikeCode $weaponOrShieldInOffhand
      * @param Skills $skills
      * @param Tables $tables
-     * @throws Exceptions\CanNotHoldItByTwoHands
+     * @param WeaponlikeCode $weaponlike
+     * @param ItemHoldingCode $weaponlikeHolding
+     * @param bool $fightsWithTwoWeapons
+     * @param ShieldCode $shield
+     * @throws \DrdPlus\CurrentProperties\Exceptions\CanNotHoldItByTwoHands
      * @throws \DrdPlus\CurrentProperties\Exceptions\InvalidCombatActionFormat
      * @throws \DrdPlus\CurrentProperties\Exceptions\IncompatibleCombatActions
      * @throws \DrdPlus\CurrentProperties\Exceptions\IncompatibleCombatActionsWithWeaponType
@@ -57,46 +57,92 @@ class BattleProperties extends StrictObject
     public function __construct(
         CurrentProperties $currentProperties,
         CombatActions $combatActions,
-        WeaponlikeCode $weaponOrShieldInMainHand,
-        WeaponlikeCode $weaponOrShieldInOffhand,
         Skills $skills,
-        Tables $tables
+        Tables $tables,
+        WeaponlikeCode $weaponlike,
+        ItemHoldingCode $weaponlikeHolding,
+        $fightsWithTwoWeapons,
+        ShieldCode $shield
     )
     {
+        $attackProperties = new AttackProperties(
+            $currentProperties,
+            $skills,
+            $tables,
+            $weaponlike,
+            $weaponlikeHolding,
+            $fightsWithTwoWeapons
+        );
+        $defenseProperties = new DefenseProperties(
+            $currentProperties,
+            $skills,
+            $tables,
+            $weaponlike,
+            $weaponlikeHolding,
+            $fightsWithTwoWeapons,
+            $shield
+        );
         $this->currentProperties = $currentProperties;
         $this->skills = $skills;
         $this->tables = $tables;
         $this->combatActions = $combatActions;
-        $this->weaponOrShieldInMainHand = $weaponOrShieldInMainHand;
-        $this->weaponOrShieldInOffhand = $weaponOrShieldInOffhand;
-        $this->guardWeaponsUsableTogether($weaponOrShieldInMainHand, $weaponOrShieldInOffhand);
-        $this->guardActionsCompatibleWithWeapon($combatActions, $weaponOrShieldInMainHand);
-        $this->guardActionsCompatibleWithWeapon($combatActions, $weaponOrShieldInOffhand);
-        $this->guardWeaponsAndShieldsWearable($weaponOrShieldInMainHand, $weaponOrShieldInOffhand);
+        // weapon-likes for attack
+        $this->guardAttackActionsCompatibleWithWeapon($weaponlikeForAttackInMainHand, true /* main hand */);
+        $this->guardActionsCompatibleWithWeapon($combatActions, $weaponlikeForAttackInMainHand);
+        $this->guardActionsCompatibleWithWeapon($combatActions, $weaponlikeForAttackInOffhand);
+        $this->guardAttackActionsCompatibleWithWeapon($weaponlikeForAttackInOffhand, false /* offhand */);
+        $this->guardWeaponsAndShieldsWearable($weaponlikeForAttackInMainHand, $weaponlikeForAttackInOffhand);
+        $this->weaponlikeForAttackInMainHand = $weaponlikeForAttackInMainHand;
+        $this->weaponlikeForAttackInOffhand = $weaponlikeForAttackInOffhand;
+        // weapons and shields for defense
+        $this->guardWeaponsUsableTogether($weaponOrShieldForDefenseInMainHand, $weaponOrShieldForDefenseInOffhand, false /* not for attack */);
+        $this->guardActionsCompatibleWithWeapon($combatActions, $weaponOrShieldForDefenseInMainHand);
+        $this->guardActionsCompatibleWithWeapon($combatActions, $weaponOrShieldForDefenseInOffhand);
+        $this->guardWeaponsAndShieldsWearable($weaponOrShieldForDefenseInMainHand, $weaponOrShieldForDefenseInOffhand);
+        $this->weaponOrShieldForDefenseInMainHand = $weaponOrShieldForDefenseInMainHand;
+        $this->weaponOrShieldForDefenseInOffhand = $weaponOrShieldForDefenseInOffhand;
     }
 
     /**
      * @param WeaponlikeCode $weaponOrShieldInMainHand
-     * @param WeaponlikeCode $weaponOrShieldInOffhand
+     * @param WeaponlikeCode|null $weaponOrShieldInOffhand
+     * @param bool $forAttack
      * @throws Exceptions\CanNotHoldItByTwoHands
      */
-    private function guardWeaponsUsableTogether(WeaponlikeCode $weaponOrShieldInMainHand, WeaponlikeCode $weaponOrShieldInOffhand)
+    private function guardWeaponsUsableTogether(
+        WeaponlikeCode $weaponOrShieldInMainHand = null,
+        WeaponlikeCode $weaponOrShieldInOffhand = null,
+        $forAttack
+    )
     {
+        if ($weaponOrShieldInMainHand === null && $weaponOrShieldInOffhand === null) {
+            return;
+        }
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        if ($this->tables->getArmourer()->isTwoHandedOnly($weaponOrShieldInMainHand)
-            && !$this->tables->getArmourer()->hasEmptyHand($weaponOrShieldInOffhand)
+        if ($weaponOrShieldInOffhand !== null // offhand is NOT empty
+            && $this->tables->getArmourer()->isTwoHandedOnly($weaponOrShieldInMainHand)
         ) {
             throw new Exceptions\CanNotHoldItByTwoHands(
-                "Weapon {$weaponOrShieldInMainHand} is two-handed only but second hand is occupied by {$weaponOrShieldInOffhand}"
+                "Main-hand weapon {$weaponOrShieldInMainHand} is two-handed only but second hand is occupied by {$weaponOrShieldInOffhand}"
+                . ($weaponOrShieldInOffhand->isUnarmed() ? ' (even this is a weapon, because you say so)' : '')
             );
         }
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        if ($this->tables->getArmourer()->isTwoHandedOnly($weaponOrShieldInOffhand)
-            && !$this->tables->getArmourer()->hasEmptyHand($weaponOrShieldInMainHand)
+        if ($weaponOrShieldInMainHand !== null // main hand is NOT empty
+            && $this->tables->getArmourer()->isTwoHandedOnly($weaponOrShieldInOffhand)
         ) {
             throw new Exceptions\CanNotHoldItByTwoHands(
-                "Weapon {$weaponOrShieldInOffhand} is two-handed only but second hand is occupied by {$weaponOrShieldInMainHand}"
+                "Offhand weapon {$weaponOrShieldInOffhand} is two-handed only but second hand is occupied by {$weaponOrShieldInMainHand}"
+                . ($weaponOrShieldInMainHand->isUnarmed() ? ' (even this is a weapon, because you say so)' : '')
             );
+        }
+        if (!$forAttack || !$weaponOrShieldInMainHand || !$weaponOrShieldInOffhand) {
+            return;
+        }
+        if (($weaponOrShieldInMainHand->isShootingWeapon() && !$weaponOrShieldInOffhand->isShootingWeapon())
+            || (!$weaponOrShieldInMainHand->isShootingWeapon() && $weaponOrShieldInOffhand->isShootingWeapon())
+        ) {
+            throw new \LogicException('Can not combine shooting and non-shooting weapon for attack');
         }
     }
 
@@ -107,11 +153,17 @@ class BattleProperties extends StrictObject
      * @throws \DrdPlus\CurrentProperties\Exceptions\IncompatibleCombatActions
      * @throws \DrdPlus\CurrentProperties\Exceptions\IncompatibleCombatActionsWithWeaponType
      */
-    private function guardActionsCompatibleWithWeapon(CombatActions $currentCombatActions, WeaponlikeCode $weaponOrShield)
+    private function guardActionsCompatibleWithWeapon(
+        CombatActions $currentCombatActions,
+        WeaponlikeCode $weaponOrShield = null
+    )
     {
+        if (!$weaponOrShield) {
+            return;
+        }
         $availableCombatActions = new CombatActions(
             $this->tables->getCombatActionsWithWeaponTypeCompatibilityTable()
-                ->getActionsPossibleWhenAttackingWith($weaponOrShield),
+                ->getActionsPossibleWhenFightingWith($weaponOrShield),
             $this->tables->getCombatActionsCompatibilityTable()
         );
         $currentCombatActions = $currentCombatActions->getIterator()->getArrayCopy();
@@ -124,65 +176,92 @@ class BattleProperties extends StrictObject
     }
 
     /**
+     * @param WeaponlikeCode $weaponlike
+     * @param bool $isForMainHand
+     * @throws \LogicException
+     */
+    private function guardAttackActionsCompatibleWithWeapon(WeaponlikeCode $weaponlike = null, $isForMainHand)
+    {
+        if ($weaponlike) {
+            return;
+        }
+        if ($isForMainHand) {
+            if (!$weaponlike && $this->combatActions->attacksByMainHandOnly()) {
+                throw new \LogicException();
+            }
+        } else {
+            if (!$weaponlike && $this->combatActions->attacksByOffhandOnly()) {
+                throw new \LogicException();
+            }
+        }
+    }
+
+    /**
      * @param WeaponlikeCode $weaponOrShieldInMainHand
      * @param WeaponlikeCode $weaponOrShieldInOffhand
      * @throws \DrdPlus\CurrentProperties\Exceptions\CanNotUseArmamentBecauseOfMissingStrength
      */
-    private function guardWeaponsAndShieldsWearable(WeaponlikeCode $weaponOrShieldInMainHand, WeaponlikeCode $weaponOrShieldInOffhand)
+    private function guardWeaponsAndShieldsWearable(
+        WeaponlikeCode $weaponOrShieldInMainHand = null,
+        WeaponlikeCode $weaponOrShieldInOffhand = null
+    )
     {
-        if ($this->usesSingleWeaponOrShield()) {
-            if ($this->combatActions->fightsByTwoHands()) {
-                /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-                $this->guardWeaponOrShieldWearable(
-                    $this->getSingleWeaponOrShield(),
-                    $this->getStrengthForWeaponInTwoHands($this->getSingleWeaponOrShield())
-                );
-            } else {
-                assert($this->usesSingleOneHandedWeaponByOneHand());
-                /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-                $this->guardWeaponOrShieldWearable(
-                    $this->getSingleWeaponOrShield(),
-                    $this->getStrengthForSingleOneHandedWeapon()
-                );
-            }
-        } else {
-            assert($this->usesTwoWeaponsOrWithShield());
-            $this->guardWeaponOrShieldWearable($weaponOrShieldInMainHand, $this->currentProperties->getStrengthForMainHandOnly());
-            $this->guardWeaponOrShieldWearable($weaponOrShieldInOffhand, $this->currentProperties->getStrengthForOffhandOnly());
+        if ($weaponOrShieldInMainHand === null && $weaponOrShieldInOffhand === null) {
+            return;
         }
+        $singleWeaponlike = $this->findSingleWeaponlike($weaponOrShieldInMainHand, $weaponOrShieldInMainHand);
+        if ($singleWeaponlike) {
+            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+            $this->guardWeaponOrShieldWearable($singleWeaponlike, $this->getStrengthForWeaponInTwoHands($singleWeaponlike));
+
+            return;
+        }
+        $this->guardWeaponOrShieldWearable($weaponOrShieldInMainHand, $this->currentProperties->getStrengthForMainHandOnly());
+        $this->guardWeaponOrShieldWearable($weaponOrShieldInOffhand, $this->currentProperties->getStrengthForOffhandOnly());
     }
 
     /**
-     * @return bool
+     * @param WeaponlikeCode|null $weaponOrShieldInMainHand
+     * @param WeaponlikeCode|null $weaponOrShieldInOffhand
+     * @return WeaponlikeCode|null
      */
-    private function usesSingleWeaponOrShield()
+    private function findSingleWeaponlike(
+        WeaponlikeCode $weaponOrShieldInMainHand = null,
+        WeaponlikeCode $weaponOrShieldInOffhand = null)
     {
-        return $this->combatActions->fightsByMainHandOnly() || $this->combatActions->fightsByOffhandOnly();
+        if ($weaponOrShieldInMainHand && !$weaponOrShieldInOffhand) {
+            return $weaponOrShieldInMainHand;
+        } else if (!$weaponOrShieldInMainHand && $weaponOrShieldInOffhand) {
+            return $weaponOrShieldInOffhand;
+        }
+
+        return null;
     }
 
     /**
-     * @return bool
+     * If one-handed weapon or shield is kept by both hands, the required strength for weapon is lower
+     * (fighter strength is considered higher respectively)
+     * see details in PPH page 93, left column
+     *
+     * @param WeaponlikeCode $twoHandsBearableWeapon
+     * @return Strength
+     * @throws \DrdPlus\CurrentProperties\Exceptions\CanNotHoldItByTwoHands
      */
-    private function usesTwoWeaponsOrWithShield()
+    private function getStrengthForWeaponInTwoHands(WeaponlikeCode $twoHandsBearableWeapon)
     {
-        return !$this->usesSingleWeaponOrShield();
-    }
-
-    /**
-     * @return WeaponlikeCode
-     * @throws Exceptions\CanNotGiveSingleWeaponWhenTwoAreUsed
-     */
-    private function getSingleWeaponOrShield()
-    {
-        if (!$this->tables->getArmourer()->hasEmptyHand($this->weaponOrShieldInMainHand)) {
-            return $this->weaponOrShieldInMainHand;
+        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+        if (!$this->tables->getArmourer()->canHoldItByTwoHands($twoHandsBearableWeapon)) {
+            throw new Exceptions\CanNotHoldItByTwoHands(
+                "Can not hold '{$twoHandsBearableWeapon}' by both hands or it has no effect."
+            );
         }
-        if (!$this->tables->getArmourer()->hasEmptyHand($this->weaponOrShieldInOffhand)) {
-            return $this->weaponOrShieldInOffhand;
+        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+        if ($this->tables->getArmourer()->isTwoHandedOnly($twoHandsBearableWeapon)) {
+            return $this->currentProperties->getStrengthForMainHandOnly(); // it is both-hands only weapon, can NOT count +2 bonus
         }
-        throw new Exceptions\CanNotGiveSingleWeaponWhenTwoAreUsed(
-            "Can not give single weapon when using {$this->weaponOrShieldInMainHand} and {$this->weaponOrShieldInOffhand}"
-        );
+        // If one-handed is kept by both hands, the required strength is lower (fighter strength is higher respectively)
+        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+        return $this->currentProperties->getStrengthForMainHandOnly()->add(2);
     }
 
     /**
@@ -230,73 +309,13 @@ class BattleProperties extends StrictObject
         $fightNumberModifier = 0;
 
         // strength effect
-        if ($this->usesSingleWeaponOrShield()) {
-            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-            $fightNumberModifier += $this->tables->getArmourer()->getFightNumberMalusByStrengthWithWeaponOrShield(
-                $this->getSingleWeaponOrShield(),
-                $this->getStrengthForWeaponInTwoHands($this->getSingleWeaponOrShield())
-            );
-        } else {
-            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-            $fightNumberModifier += $this->tables->getArmourer()->getFightNumberMalusByStrengthWithWeaponOrShield(
-                $this->weaponOrShieldInMainHand,
-                $this->getStrengthForMainHand()
-            );
-            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-            $fightNumberModifier += $this->tables->getArmourer()->getFightNumberMalusByStrengthWithWeaponOrShield(
-                $this->weaponOrShieldInOffhand,
-                $this->getStrengthForOffhand()
-            );
-        }
+        $fightNumberModifier += $this->getFightNumberMalusByStrength();
 
         // skills effect
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        $fightNumberModifier +=
-            $this->skills->getMalusToFightNumberWithProtective(
-                $this->currentProperties->getWornBodyArmor(),
-                $this->tables->getArmourer()
-            );
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        $fightNumberModifier += $this->skills->getMalusToFightNumberWithProtective(
-            $this->currentProperties->getWornHelm(),
-            $this->tables->getArmourer()
-        );
-        $shields = [];
-        if ($this->weaponOrShieldInMainHand->isShield()) { // even if you use the shield in main hand as a weapon...
-            $shields[] = $this->weaponOrShieldInMainHand;
-        }
-        if ($this->weaponOrShieldInOffhand->isShield()) { // even if you use the shield in offhand as a weapon...
-            $shields[] = $this->weaponOrShieldInOffhand;
-        }
-        foreach ($shields as $shield) {
-            /** @var ShieldCode $shield */
-            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-            $fightNumberModifier += $this->skills->getMalusToFightNumberWithProtective(
-                $shield,
-                $this->tables->getArmourer()
-            );
-        }
-        $weaponlikes = $this->getUsedWeaponlikes(); // weapons for attack or defense or shields for attack - NOT shields for defense
-        foreach ($weaponlikes as $weaponlike) {
-            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-            $fightNumberModifier += $this->skills->getMalusToFightNumberWithWeaponlike(
-                $weaponlike,
-                $this->tables->getMissingWeaponSkillTable(),
-                $this->fightsWithTwoWeapons()
-            );
-        }
+        $fightNumberModifier += $this->getFightNumberMalusBySkills();
 
         // weapon length effect - length of weapon is directly used as bonus to fight number (shields and ranged weapons have length zero)
-        if ($this->usesSingleWeaponOrShield()) {
-            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-            $fightNumberModifier += $this->tables->getArmourer()->getLengthOfWeaponlike($this->getSingleWeaponOrShield());
-        } else {
-            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-            $mainHandLength = $this->tables->getArmourer()->getLengthOfWeaponlike($this->weaponOrShieldInMainHand);
-            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-            $offHandLength = $this->tables->getArmourer()->getLengthOfWeaponlike($this->weaponOrShieldInOffhand);
-            $fightNumberModifier += max($mainHandLength, $offHandLength);
-        }
+        $fightNumberModifier += $this->getFightNumberBonusByWeaponLength();
 
         // combat actions effect
         $fightNumberModifier += $this->combatActions->getFightNumberModifier();
@@ -305,100 +324,173 @@ class BattleProperties extends StrictObject
     }
 
     /**
-     * Gives weapons for attack or defense (including arms or legs) or shields for attack - NOT shields for defense.
-     *
-     * @return array|WeaponlikeCode[]
+     * @return int
      */
-    private function getUsedWeaponlikes()
+    private function getFightNumberMalusByStrength()
     {
-        $weaponlikes = [];
-        if ($this->weaponOrShieldInMainHand->isShield()) {
-            if ($this->combatActions->attacksByMainHandOnly()
-                || $this->combatActions->attacksByTwoHands() // shield can be hold by both hands
-            ) {
-                $weaponlikes[] = $this->weaponOrShieldInMainHand; // shield in main hand is used for attack
-            }
-        } else {
-            assert($this->weaponOrShieldInMainHand->isWeapon());
-            if (!$this->weaponOrShieldInMainHand->isUnarmed()) { // standard weapon
-                $weaponlikes[] = $this->weaponOrShieldInMainHand;
-            } elseif ($this->combatActions->fightsByMainHandOnly()) {
-                $weaponlikes[] = $this->weaponOrShieldInMainHand; // you use hand or leg (well, yes, leg can be main "hand")
-            }
-        }
-        if ($this->weaponOrShieldInOffhand->isShield()) {
-            if ($this->combatActions->attacksByOffhandOnly()
-                || $this->combatActions->attacksByTwoHands() // shield can be hold by both hands
-            ) {
-                $weaponlikes[] = $this->weaponOrShieldInOffhand; // shield in offhand is used for attack
-            }
-        } else {
-            assert($this->weaponOrShieldInOffhand->isWeapon());
-            if (!$this->weaponOrShieldInOffhand->isUnarmed()) { // standard weapon
-                $weaponlikes[] = $this->weaponOrShieldInOffhand;
-            } elseif ($this->combatActions->fightsByOffhandOnly()) {
-                $weaponlikes[] = $this->weaponOrShieldInOffhand; // you use hand or leg (well, yes, leg can be "offhand")
-            }
-        }
-
-        return $weaponlikes;
-    }
-
-    /**
-     * @return bool
-     */
-    private function usesSingleOneHandedWeaponByOneHand()
-    {
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        return
-            $this->usesSingleWeaponOrShield()
-            && ($this->combatActions->fightsByMainHandOnly()
-                || $this->combatActions->fightsByOffhandOnly()
+        return max( // lesser malus is used (negative number closer to zero)
+            $this->getFightNumberMalusByStrengthFor(
+                $this->weaponlikeForAttackInMainHand,
+                $this->weaponlikeForAttackInOffhand
+            ),
+            $this->getFightNumberMalusByStrengthFor(
+                $this->weaponOrShieldForDefenseInMainHand,
+                $this->weaponOrShieldForDefenseInOffhand
             )
-            && $this->tables->getArmourer()->canHoldItByOneHand($this->getSingleWeaponOrShield());
+        );
     }
 
     /**
-     * If one-handed weapon or shield is kept by both hands, the required strength for weapon is lower
-     * (fighter strength is considered higher respectively)
-     * see details in PPH page 93, left column
-     *
-     * @param WeaponlikeCode $twoHandsBearableWeapon
-     * @return Strength
-     * @throws \DrdPlus\CurrentProperties\Exceptions\CanNotHoldItByTwoHands
+     * @param WeaponlikeCode|null $mainHand
+     * @param WeaponlikeCode|null $offhand
+     * @return int
      */
-    private function getStrengthForWeaponInTwoHands(WeaponlikeCode $twoHandsBearableWeapon)
+    private function getFightNumberMalusByStrengthFor(WeaponlikeCode $mainHand = null, WeaponlikeCode $offhand = null)
     {
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        if (!$this->tables->getArmourer()->canHoldItByTwoHands($twoHandsBearableWeapon)) {
-            throw new Exceptions\CanNotHoldItByTwoHands(
-                "Can not hold '{$twoHandsBearableWeapon}' by both hands or it has no effect."
+        if (!$mainHand && !$offhand) {
+            return 0; // no weapons at all, so no malus at all
+        }
+        $singleWeaponlike = $this->findSingleWeaponlike($mainHand, $offhand);
+        if ($singleWeaponlike) {
+            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+            return $this->tables->getArmourer()->getFightNumberMalusByStrengthWithWeaponOrShield( // single weapon
+                $singleWeaponlike,
+                $this->getStrengthForWeaponInTwoHands($singleWeaponlike)
             );
         }
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        if ($this->tables->getArmourer()->isTwoHandedOnly($twoHandsBearableWeapon)) {
-            return $this->currentProperties->getStrengthForMainHandOnly(); // it is both-hands only weapon, can NOT count +2 bonus
-        }
-        // If one-handed is kept by both hands, the required strength is lower (fighter strength is higher respectively)
+        $fightNumberMalus = $this->tables->getArmourer()->getFightNumberMalusByStrengthWithWeaponOrShield(
+            $mainHand,
+            $this->getStrengthForMainHand()
+        );
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        return $this->currentProperties->getStrengthForMainHandOnly()->add(2);
+        $fightNumberMalus += $this->tables->getArmourer()->getFightNumberMalusByStrengthWithWeaponOrShield(
+            $offhand,
+            $this->getStrengthForOffhand()
+        );
+
+        return $fightNumberMalus; // sum of strength maluses from both weapons
     }
 
     /**
-     * @return Strength
-     * @throws Exceptions\NoOneHandActionChosen
+     * @return int
      */
-    private function getStrengthForSingleOneHandedWeapon()
+    private function getFightNumberMalusBySkills()
     {
-        if ($this->combatActions->attacksByMainHandOnly()) {
-            return $this->getStrengthForMainHand();
-        }
-        if ($this->combatActions->attacksByOffhandOnly()) {
-            return $this->getStrengthForOffhand();
-        }
-        throw new Exceptions\NoOneHandActionChosen(
-            'Can not give strength for single weapon when no one hand attack action has been chose'
+        $fightNumberMalus = $this->getFightNumberMalusFromProtectivesBySkills();
+        $fightNumberMalus += $this->getFightNumberMalusFromWeaponlikesBySkills();
+
+        return $fightNumberMalus;
+    }
+
+    /**
+     * @return int
+     */
+    private function getFightNumberMalusFromProtectivesBySkills()
+    {
+        // armor and helm
+        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+        $fightNumberMalus = $this->skills->getMalusToFightNumberWithProtective(
+            $this->currentProperties->getWornBodyArmor(),
+            $this->tables->getArmourer()
         );
+        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+        $fightNumberMalus += $this->skills->getMalusToFightNumberWithProtective(
+            $this->currentProperties->getWornHelm(),
+            $this->tables->getArmourer()
+        );
+        // shields
+        $shields = [];
+        if ($this->weaponlikeForAttackInMainHand->isShield()) { // EVEN IF you use the shield in main hand as a weapon...
+            $shields[] = $this->weaponlikeForAttackInMainHand;
+        }
+        if ($this->weaponlikeForAttackInOffhand->isShield()) { // EVEN IF you use the shield in offhand as a weapon...
+            $shields[] = $this->weaponlikeForAttackInOffhand;
+        }
+        if ($this->weaponOrShieldForDefenseInMainHand->isShield()) {
+            $shields[] = $this->weaponOrShieldForDefenseInMainHand;
+        }
+        if ($this->weaponOrShieldForDefenseInOffhand->isShield()) {
+            $shields[] = $this->weaponOrShieldForDefenseInOffhand;
+        }
+        foreach ($shields as $shield) {
+            /** @var ShieldCode $shield */
+            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+            $fightNumberMalus += $this->skills->getMalusToFightNumberWithProtective(
+                $shield,
+                $this->tables->getArmourer()
+            );
+        }
+
+        return $fightNumberMalus;
+    }
+
+    /**
+     * @return int
+     */
+    private function getFightNumberMalusFromWeaponlikesBySkills()
+    {
+        $weaponlikePairs = [];
+        $weaponlikePairForAttack = [];
+        if ($this->weaponlikeForAttackInMainHand) { // if it is a shield than it is used for attack
+            $weaponlikePairForAttack[] = $this->weaponlikeForAttackInMainHand;
+        }
+        if ($this->weaponlikeForAttackInOffhand) { // if it is a shield than it is used for attack
+            $weaponlikePairForAttack[] = $this->weaponlikeForAttackInOffhand;
+        }
+        $weaponlikePairs[] = $weaponlikePairForAttack;
+        $weaponlikePairForDefense = [];
+        if ($this->weaponOrShieldForDefenseInMainHand && $this->weaponOrShieldForDefenseInMainHand->isWeapon()) {
+            assert(!$this->weaponOrShieldForDefenseInMainHand->isShield());
+            $weaponlikePairForDefense[] = $this->weaponOrShieldForDefenseInMainHand;
+        }
+        if ($this->weaponOrShieldForDefenseInOffhand && $this->weaponOrShieldForDefenseInOffhand->isWeapon()) {
+            assert(!$this->weaponOrShieldForDefenseInOffhand->isShield());
+            $weaponlikePairForDefense[] = $this->weaponOrShieldForDefenseInOffhand;
+        }
+        $weaponlikePairs[] = $weaponlikePairForDefense;
+
+        $fightNumberMalus = 0;
+        foreach ($weaponlikePairs as $weaponlikePair) {
+            /** @var array $weaponlikePair */
+            foreach ($weaponlikePair as $weaponlike) {
+                /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+                $fightNumberMalus += $this->skills->getMalusToFightNumberWithWeaponlike(
+                    $weaponlike,
+                    $this->tables->getMissingWeaponSkillTable(),
+                    count($weaponlikePair) === 2 // fights with two weapons
+                );
+            }
+        }
+
+        return $fightNumberMalus;
+    }
+
+    /**
+     * @return int
+     */
+    private function getFightNumberBonusByWeaponLength()
+    {
+        $weaponsAndShields = [];
+        if ($this->weaponlikeForAttackInMainHand) {
+            $weaponsAndShields = [$this->weaponlikeForAttackInMainHand];
+        }
+        if ($this->weaponlikeForAttackInOffhand) {
+            $weaponsAndShields = [$this->weaponlikeForAttackInOffhand];
+        }
+        if ($this->weaponOrShieldForDefenseInMainHand) {
+            $weaponsAndShields = [$this->weaponOrShieldForDefenseInMainHand];
+        }
+        if ($this->weaponOrShieldForDefenseInOffhand) {
+            $weaponsAndShields = [$this->weaponOrShieldForDefenseInOffhand];
+        }
+        $lengths = [];
+        foreach ($weaponsAndShields as $weaponOrShield) {
+            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+            $lengths[] = $this->tables->getArmourer()->getLengthOfWeaponlike($weaponOrShield);
+        }
+
+        return max($lengths); // length of a weapon is directly used as a bonus to fight number
     }
 
     /**
@@ -422,12 +514,45 @@ class BattleProperties extends StrictObject
      */
     private function createBaseAttackNumber()
     {
-        if ($this->getWeaponUsedForAttack()->isShootingWeapon()) {
+        if (($this->weaponlikeForAttackInMainHand && $this->weaponlikeForAttackInMainHand->isShootingWeapon())
+            || ($this->weaponlikeForAttackInOffhand && $this->weaponlikeForAttackInOffhand->isShootingWeapon())
+        ) {
+            /** shooting and melee or throwing weapons can not be combined, @see guardWeaponsUsableTogether */
             return AttackNumber::createFromShooting(new Shooting($this->currentProperties->getKnack()));
         }
-        assert($this->getWeaponUsedForAttack()->isMelee() || $this->getWeaponUsedForAttack()->isThrowingWeapon());
 
+        // covers no-weapon-at-all and melee or throwing weapons
         return AttackNumber::createFromAttack(new Attack($this->currentProperties->getAgility()));
+    }
+
+    /**
+     * @return WeaponlikeCode|null
+     */
+    private function getWeaponUsedForAttack()
+    {
+        if (!$this->weaponlikeForAttackInMainHand && !$this->weaponlikeForAttackInOffhand) {
+            return null;
+        }
+        $singleWeaponlike = $this->findSingleWeaponlike($this->weaponlikeForAttackInMainHand, $this->weaponlikeForAttackInOffhand);
+        if ($singleWeaponlike) {
+            return $singleWeaponlike;
+        }
+        if ($this->combatActions->attacksByMainHandOnly()) {
+            /** if there is an attack action, there HAS TO be a weapon @see guardAttackActionsCompatibleWithWeapon */
+            return $this->weaponlikeForAttackInMainHand;
+        }
+        if ($this->combatActions->attacksByOffhandOnly()) {
+            /** if there is an attack action, there HAS TO be a weapon @see guardAttackActionsCompatibleWithWeapon */
+            return $this->weaponlikeForAttackInOffhand;
+        }
+        if ($this->weaponlikeForAttackInMainHand) {
+            return $this->weaponlikeForAttackInMainHand; // two hands attack
+        }
+        if ($this->weaponlikeForAttackInOffhand) {
+            return $this->weaponlikeForAttackInOffhand; // two hands attack
+        }
+
+        return null; // no planned attack at all and therefore weapon used for attack is not known
     }
 
     /**
@@ -477,28 +602,6 @@ class BattleProperties extends StrictObject
         $attackNumberModifier += $this->combatActions->getAttackNumberModifier();
 
         return $attackNumberModifier;
-    }
-
-    /**
-     * @return bool
-     */
-    private function fightsWithTwoWeapons()
-    {
-        return
-            ($this->weaponOrShieldInMainHand->isWeapon()
-                || ($this->weaponOrShieldInMainHand->isShield()
-                    && ($this->combatActions->attacksByMainHandOnly()
-                        || $this->combatActions->attacksByTwoHands()
-                    )
-                )
-            )
-            && ($this->weaponOrShieldInOffhand->isWeapon()
-                || ($this->weaponOrShieldInOffhand->isShield()
-                    && ($this->combatActions->attacksByOffhandOnly()
-                        || $this->combatActions->attacksByTwoHands()
-                    )
-                )
-            );
     }
 
     /**
@@ -560,17 +663,17 @@ class BattleProperties extends StrictObject
         //strength effect
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
         $coverModifier += $this->tables->getArmourer()->getDefenseNumberMalusByStrengthWithWeaponOrShield(
-            $this->weaponOrShieldInMainHand,
+            $this->weaponlikeForAttackInMainHand,
             $this->getStrengthForMainHand()
         );
 
         // weapon or shield effect
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        $coverModifier += $this->tables->getArmourer()->getCoverOfWeaponOrShield($this->weaponOrShieldInMainHand);
-        if ($this->weaponOrShieldInMainHand->isWeapon()) {
-            assert($this->weaponOrShieldInMainHand instanceof WeaponCode);
+        $coverModifier += $this->tables->getArmourer()->getCoverOfWeaponOrShield($this->weaponlikeForAttackInMainHand);
+        if ($this->weaponlikeForAttackInMainHand->isWeapon()) {
+            assert($this->weaponlikeForAttackInMainHand instanceof WeaponCode);
             /** @var WeaponCode $weapon */
-            $weapon = $this->weaponOrShieldInMainHand;
+            $weapon = $this->weaponlikeForAttackInMainHand;
             // skill effect
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
             $coverModifier += $this->skills->getMalusToCoverWithWeapon(
@@ -622,17 +725,17 @@ class BattleProperties extends StrictObject
         //strength effect
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
         $coverModifier += $this->tables->getArmourer()->getDefenseNumberMalusByStrengthWithWeaponOrShield(
-            $this->weaponOrShieldInOffhand,
+            $this->weaponlikeForAttackInOffhand,
             $this->getStrengthForOffhand()
         );
 
         // weapon or shield effect
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        $coverModifier += $this->tables->getArmourer()->getCoverOfWeaponOrShield($this->weaponOrShieldInOffhand);
-        if ($this->weaponOrShieldInOffhand->isWeapon()) {
-            assert($this->weaponOrShieldInOffhand instanceof WeaponCode);
+        $coverModifier += $this->tables->getArmourer()->getCoverOfWeaponOrShield($this->weaponlikeForAttackInOffhand);
+        if ($this->weaponlikeForAttackInOffhand->isWeapon()) {
+            assert($this->weaponlikeForAttackInOffhand instanceof WeaponCode);
             /** @var WeaponCode $weapon */
-            $weapon = $this->weaponOrShieldInOffhand;
+            $weapon = $this->weaponlikeForAttackInOffhand;
             // skill effect
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
             $coverModifier += $this->skills->getMalusToCoverWithWeapon(
@@ -700,16 +803,16 @@ class BattleProperties extends StrictObject
      */
     public function getDefenseNumberAgainstShootingCoveredPassivelyByShieldInMainHand()
     {
-        if (!$this->weaponOrShieldInMainHand->isShield()) {
+        if (!$this->weaponlikeForAttackInMainHand->isShield()) {
             throw new Exceptions\MissingShieldInMainHand(
                 'You have to hold a shield in main hand to get defense with shield.'
-                . " You are holding {$this->weaponOrShieldInMainHand} instead"
+                . " You are holding {$this->weaponlikeForAttackInMainHand} instead"
             );
         }
 
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
         return $this->getDefenseNumberAgainstShooting()
-            ->add($this->tables->getArmourer()->getCoverOfWeaponOrShield($this->weaponOrShieldInMainHand));
+            ->add($this->tables->getArmourer()->getCoverOfWeaponOrShield($this->weaponlikeForAttackInMainHand));
     }
 
     /**
@@ -721,16 +824,16 @@ class BattleProperties extends StrictObject
      */
     public function getDefenseNumberAgainstShootingCoveredPassivelyByShieldInOffhand()
     {
-        if (!$this->weaponOrShieldInOffhand->isShield()) {
+        if (!$this->weaponlikeForAttackInOffhand->isShield()) {
             throw new Exceptions\MissingShieldInOffHand(
                 'You have to hold a shield in offhand to get defense with shield.'
-                . " You are holding {$this->weaponOrShieldInOffhand} instead"
+                . " You are holding {$this->weaponlikeForAttackInOffhand} instead"
             );
         }
 
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
         return $this->getDefenseNumberAgainstShooting()
-            ->add($this->tables->getArmourer()->getCoverOfWeaponOrShield($this->weaponOrShieldInOffhand));
+            ->add($this->tables->getArmourer()->getCoverOfWeaponOrShield($this->weaponlikeForAttackInOffhand));
     }
 
     /**
@@ -753,16 +856,16 @@ class BattleProperties extends StrictObject
      */
     public function getDefenseNumberAgainstShootingAndFasterOpponentCoveredPassivelyByShieldInMainHand()
     {
-        if (!$this->weaponOrShieldInMainHand->isShield()) {
+        if (!$this->weaponlikeForAttackInMainHand->isShield()) {
             throw new Exceptions\MissingShieldInMainHand(
                 'You have to hold a shield in main hand to get defense with shield.'
-                . " You are holding {$this->weaponOrShieldInMainHand} instead"
+                . " You are holding {$this->weaponlikeForAttackInMainHand} instead"
             );
         }
 
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
         return $this->getDefenseNumberAgainstShooting()
-            ->add($this->tables->getArmourer()->getCoverOfWeaponOrShield($this->weaponOrShieldInMainHand));
+            ->add($this->tables->getArmourer()->getCoverOfWeaponOrShield($this->weaponlikeForAttackInMainHand));
     }
 
     /**
@@ -774,16 +877,16 @@ class BattleProperties extends StrictObject
      */
     public function getDefenseNumberAgainstShootingAndFasterOpponentAndPassiveShieldInOffhand()
     {
-        if (!$this->weaponOrShieldInOffhand->isShield()) {
+        if (!$this->weaponlikeForAttackInOffhand->isShield()) {
             throw new Exceptions\MissingShieldInOffHand(
                 'You have to hold a shield in offhand to get defense with shield.'
-                . " You are holding {$this->weaponOrShieldInOffhand} instead"
+                . " You are holding {$this->weaponlikeForAttackInOffhand} instead"
             );
         }
 
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
         return $this->getDefenseNumberAgainstShooting()
-            ->add($this->tables->getArmourer()->getCoverOfWeaponOrShield($this->weaponOrShieldInOffhand));
+            ->add($this->tables->getArmourer()->getCoverOfWeaponOrShield($this->weaponlikeForAttackInOffhand));
     }
 
     /**
@@ -836,26 +939,6 @@ class BattleProperties extends StrictObject
     }
 
     /**
-     * @return WeaponlikeCode
-     * @throws Exceptions\CanNotGiveWeaponForAttackWhenNoAttackActionChosen
-     */
-    private function getWeaponUsedForAttack()
-    {
-        if ($this->combatActions->attacksByMainHandOnly()) {
-            return $this->weaponOrShieldInMainHand;
-        } else if ($this->combatActions->attacksByOffhandOnly()) {
-            return $this->weaponOrShieldInOffhand;
-        } else if ($this->combatActions->attacksByTwoHands()) {
-            assert($this->usesSingleWeaponOrShield()); // you can not attack by two weapons simultaneously, see PPH page 108 left column
-            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-            return $this->getSingleWeaponOrShield();
-        }
-        throw new Exceptions\CanNotGiveWeaponForAttackWhenNoAttackActionChosen(
-            'Can not give weapon for attack with pacifist actions ' . $this->combatActions
-        );
-    }
-
-    /**
      * @return Strength
      * @throws Exceptions\CanNotGiveStrengthForWeaponForAttackWhenNoAttackActionChosen
      */
@@ -868,7 +951,7 @@ class BattleProperties extends StrictObject
         } else if ($this->combatActions->attacksByTwoHands()) {
             assert($this->usesSingleWeaponOrShield()); // you can not attack by two weapons simultaneously, see PPH page 108 left column
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-            return $this->getStrengthForWeaponInTwoHands($this->getSingleWeaponOrShield());
+            return $this->getStrengthForWeaponInTwoHands($this->getSingleWeaponlikeForAttack());
         }
         throw new Exceptions\CanNotGiveStrengthForWeaponForAttackWhenNoAttackActionChosen(
             'Can not give weapon for attack with pacifist actions ' . $this->combatActions
