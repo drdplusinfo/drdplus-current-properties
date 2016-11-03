@@ -22,6 +22,7 @@ use DrdPlus\Tables\Armaments\Exceptions\DistanceIsOutOfMaximalRange;
 use DrdPlus\Tables\Armaments\Exceptions\EncounterRangeCanNotBeGreaterThanMaximalRange;
 use DrdPlus\Tables\Environments\Exceptions\DistanceOutOfKnownValues;
 use DrdPlus\Tables\Measurements\Distance\Distance;
+use DrdPlus\Tables\Measurements\Distance\DistanceBonus;
 use DrdPlus\Tables\Measurements\Wounds\WoundsBonus as BaseOfWounds;
 use DrdPlus\Tables\Measurements\Wounds\WoundsBonus;
 use DrdPlus\Tables\Tables;
@@ -64,7 +65,6 @@ class FightProperties extends StrictObject
      * @throws \DrdPlus\CurrentProperties\Exceptions\CanNotHoldItByTwoHands
      * @throws \DrdPlus\CurrentProperties\Exceptions\InvalidCombatActionFormat
      * @throws \DrdPlus\CurrentProperties\Exceptions\IncompatibleCombatActions
-     * @throws \DrdPlus\CurrentProperties\Exceptions\IncompatibleCombatActionsWithWeaponType
      * @throws \DrdPlus\CurrentProperties\Exceptions\CanNotUseArmamentBecauseOfMissingStrength
      */
     public function __construct(
@@ -338,7 +338,6 @@ class FightProperties extends StrictObject
      *
      * @param Distance $targetDistance
      * @return AttackNumber
-     * @throws Exceptions\NoAttackActionChosen
      */
     public function getAttackNumber(Distance $targetDistance)
     {
@@ -350,7 +349,6 @@ class FightProperties extends StrictObject
 
     /**
      * @return AttackNumber
-     * @throws Exceptions\NoAttackActionChosen
      */
     private function createBaseAttackNumber()
     {
@@ -365,11 +363,9 @@ class FightProperties extends StrictObject
     /**
      * @param Distance $targetDistance
      * @return int
-     * @throws Exceptions\NoAttackActionChosen
      * @throws DistanceIsOutOfMaximalRange
      * @throws DistanceOutOfKnownValues
      * @throws EncounterRangeCanNotBeGreaterThanMaximalRange
-     * @throws Exceptions\CanNotGiveWeaponForAttackWhenNoAttackActionChosen
      */
     private function getAttackNumberModifier(Distance $targetDistance)
     {
@@ -526,10 +522,16 @@ class FightProperties extends StrictObject
      */
     public function getDefenseNumber()
     {
-        $defenseNumber = new DefenseNumber($this->currentProperties->getAgility());
-
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        return $defenseNumber->add($this->combatActions->getDefenseNumberModifier());
+        return $this->getBaseDefenseNumber()->add($this->combatActions->getDefenseNumberModifier());
+    }
+
+    /**
+     * @return DefenseNumber
+     */
+    private function getBaseDefenseNumber()
+    {
+        return new DefenseNumber($this->currentProperties->getAgility());
     }
 
     /**
@@ -542,7 +544,7 @@ class FightProperties extends StrictObject
     public function getDefenseNumberAgainstFasterOpponent()
     {
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        return $this->getDefenseNumber()->add($this->combatActions->getDefenseNumberModifierAgainstFasterOpponent());
+        return $this->getBaseDefenseNumber()->add($this->combatActions->getDefenseNumberModifierAgainstFasterOpponent());
     }
 
     /**
@@ -719,5 +721,25 @@ class FightProperties extends StrictObject
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
         return $this->getDefenseNumberAgainstShootingAndFasterOpponent()
             ->add($this->tables->getArmourer()->getCoverOfWeaponOrShield($this->shield));
+    }
+
+    // MOVEMENT
+
+    /**
+     * NOte: without chosen movement action you are not moving at all, therefore moved distance is zero.
+     *
+     * @return Distance
+     */
+    public function getMovedDistance()
+    {
+        if ($this->combatActions->getSpeedModifier() === 0) {
+            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+            return new Distance(0, Distance::M, $this->tables->getDistanceTable());
+        }
+        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+        $speed = $this->currentProperties->getSpeed()->add($this->combatActions->getSpeedModifier());
+        $distanceBonus = new DistanceBonus($speed->getValue(), $this->tables->getDistanceTable());
+
+        return $distanceBonus->getDistance();
     }
 }

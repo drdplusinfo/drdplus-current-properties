@@ -47,8 +47,6 @@ class CurrentProperties extends StrictObject implements BasePropertiesInterface
     private $wornBodyArmor;
     /** @var HelmCode */
     private $wornHelm;
-    /** @var Size */
-    private $size;
     /** @var Profession */
     private $profession;
     /** @var CargoWeight */
@@ -65,7 +63,6 @@ class CurrentProperties extends StrictObject implements BasePropertiesInterface
      *
      * @param PropertiesByLevels $propertiesByLevels
      * @param Health $health
-     * @param Size $bodySize
      * @param Profession $profession
      * @param RaceCode $raceCode
      * @param SubRaceCode $subRaceCode
@@ -78,7 +75,6 @@ class CurrentProperties extends StrictObject implements BasePropertiesInterface
     public function __construct(
         PropertiesByLevels $propertiesByLevels,
         Health $health,
-        Size $bodySize,
         Profession $profession,
         RaceCode $raceCode,
         SubRaceCode $subRaceCode,
@@ -89,7 +85,6 @@ class CurrentProperties extends StrictObject implements BasePropertiesInterface
     )
     {
         $this->propertiesByLevels = $propertiesByLevels;
-        $this->size = $bodySize;
         $this->profession = $profession;
         $this->health = $health;
         $this->raceCode = $raceCode;

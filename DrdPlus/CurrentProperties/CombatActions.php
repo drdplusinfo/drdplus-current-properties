@@ -8,14 +8,15 @@ use DrdPlus\Codes\CombatActions\RangedCombatActionCode;
 use DrdPlus\Codes\WoundTypeCode;
 use DrdPlus\Tables\Actions\CombatActionsCompatibilityTable;
 use DrdPlus\Tables\Armaments\Partials\WeaponlikeTable;
+use Granam\Integer\Tools\ToInteger;
 use Granam\Strict\Object\StrictObject;
 use Granam\Tools\ValueDescriber;
 
 class CombatActions extends StrictObject implements \IteratorAggregate, \Countable
 {
-    /**
-     * @var array|CombatActionCode[]
-     */
+    /** @var int */
+    private $roundsOfAiming;
+    /** @var array|CombatActionCode[] */
     private $combatActionCodes;
 
     /**
@@ -24,19 +25,32 @@ class CombatActions extends StrictObject implements \IteratorAggregate, \Countab
      *
      * @param array|string[]|CombatActionCode[] $combatActionCodes
      * @param CombatActionsCompatibilityTable $combatActionsCompatibilityTable
+     * @param int $roundsOfAiming zero is for shooting without aim and disrupted aim
      * @throws \DrdPlus\CurrentProperties\Exceptions\InvalidCombatActionFormat
      * @throws \DrdPlus\CurrentProperties\Exceptions\IncompatibleCombatActions
+     * @throws \DrdPlus\CurrentProperties\Exceptions\InvalidRoundsOfAiming
+     * @throws \LogicException TODO
      */
     public function __construct(
         array $combatActionCodes,
-        CombatActionsCompatibilityTable $combatActionsCompatibilityTable
+        CombatActionsCompatibilityTable $combatActionsCompatibilityTable,
+        $roundsOfAiming = 0 // zero means you just start aim
     )
     {
         $sanitizedCombatActionCodes = [];
         foreach ($combatActionCodes as $combatActionCode) {
-            $sanitizedCombatActionCodes[] = CombatActionCode::getIt($combatActionCode);
+            if (in_array((string)$combatActionCode, CombatActionCode::getCombatActionCodes(), true)) {
+                $sanitizedCombatActionCodes[] = CombatActionCode::getIt($combatActionCode);
+            } elseif (in_array((string)$combatActionCode, MeleeCombatActionCode::getMeleeCombatActionCodes(), true)) {
+                $sanitizedCombatActionCodes[] = MeleeCombatActionCode::getIt($combatActionCode);
+            } elseif (in_array((string)$combatActionCode, RangedCombatActionCode::getRangedCombatActionCodes(), true)) {
+                $sanitizedCombatActionCodes[] = RangedCombatActionCode::getIt($combatActionCode);
+            } else {
+                throw new \LogicException();
+            }
         }
         $this->validateActionCodesCoWork($sanitizedCombatActionCodes, $combatActionsCompatibilityTable);
+        $this->roundsOfAiming = $this->sanitizeRoundsOfAiming($roundsOfAiming);
         $this->combatActionCodes = [];
         foreach ($sanitizedCombatActionCodes as $combatActionCode) {
             $this->combatActionCodes[$combatActionCode->getValue()] = $combatActionCode;
@@ -124,6 +138,27 @@ class CombatActions extends StrictObject implements \IteratorAggregate, \Countab
     }
 
     /**
+     * Aiming gives bonus up to three rounds of aim, any addition is thrown away.
+     *
+     * @param int $roundsOfAiming
+     * @return int
+     * @throws \DrdPlus\CurrentProperties\Exceptions\InvalidRoundsOfAiming
+     */
+    private function sanitizeRoundsOfAiming($roundsOfAiming)
+    {
+        try {
+            $roundsOfAiming = ToInteger::toPositiveInteger($roundsOfAiming);
+            if ($roundsOfAiming > 3) {
+                return 3;
+            }
+
+            return $roundsOfAiming;
+        } catch (\Granam\Integer\Tools\Exceptions\Exception $integerException) {
+            throw new Exceptions\InvalidRoundsOfAiming($integerException->getMessage());
+        }
+    }
+
+    /**
      * @return array|CombatActionCode[]
      */
     public function getCombatActionCodes()
@@ -145,6 +180,24 @@ class CombatActions extends StrictObject implements \IteratorAggregate, \Countab
     public function count()
     {
         return count($this->combatActionCodes);
+    }
+
+    /**
+     * Gives list of all combat actions separated,by,comma
+     *
+     * @return string
+     */
+    public function __toString()
+    {
+        return implode(
+            ',',
+            array_map(
+                function (CombatActionCode $combatActionCode) {
+                    return $combatActionCode->getValue();
+                },
+                $this->getIterator()->getArrayCopy()
+            )
+        );
     }
 
     /**
@@ -187,7 +240,8 @@ class CombatActions extends StrictObject implements \IteratorAggregate, \Countab
     }
 
     /**
-     * Note about AIMED SHOT, you have to sum bonus to attack number by yourself (maximum is +3).
+     * Note about AIMED SHOT, you have to provide rounds of aim to get expected attack number.
+     * Maximum counted is +3, more if truncated.
      *
      * @return int
      */
@@ -202,8 +256,7 @@ class CombatActions extends StrictObject implements \IteratorAggregate, \Countab
                 $attackNumber += 2;
             }
             if ($combatActionCode->getValue() === RangedCombatActionCode::AIMED_SHOT) {
-                /** @noinspection PrefixedIncDecrementEquivalentInspection */
-                $attackNumber += 1; // you have to sum those bonuses on attack after aiming yourself
+                $attackNumber += $this->roundsOfAiming;
             }
             if ($combatActionCode->getValue() === CombatActionCode::PUT_OUT_EASILY_ACCESSIBLE_ITEM) {
                 $attackNumber += 2;
@@ -230,26 +283,30 @@ class CombatActions extends StrictObject implements \IteratorAggregate, \Countab
     }
 
     /**
-     * @param WeaponlikeCode $weaponlikeCode
-     * @param WeaponlikeTable $weaponlikeTable
+     * @param bool $usedWeaponDoesCrushWounds
      * @return int
      */
-    public function getBaseOfWoundsModifier(
-        WeaponlikeCode $weaponlikeCode,
-        WeaponlikeTable $weaponlikeTable
-    )
+    public function getBaseOfWoundsModifier($usedWeaponDoesCrushWounds)
     {
         $baseOfWounds = 0;
         if ($this->hasAction(MeleeCombatActionCode::HEADLESS_ATTACK)) {
             $baseOfWounds += 2;
         }
-        if ($this->hasAction(MeleeCombatActionCode::FLAT_ATTACK)
-            && $weaponlikeTable->getWoundsTypeOf($weaponlikeCode) !== WoundTypeCode::CRUSH
+        if (!$usedWeaponDoesCrushWounds && $this->hasAction(MeleeCombatActionCode::FLAT_ATTACK)
         ) {
             $baseOfWounds -= 6;
         }
 
         return $baseOfWounds;
+    }
+
+    /**
+     * @param string|CombatActionCode $combatActionCode
+     * @return bool
+     */
+    private function hasAction($combatActionCode)
+    {
+        return array_key_exists((string)$combatActionCode, $this->combatActionCodes);
     }
 
     /**
@@ -315,17 +372,17 @@ class CombatActions extends StrictObject implements \IteratorAggregate, \Countab
      */
     public function getDefenseNumberModifierAgainstFasterOpponent()
     {
-        $defenseNumber = $this->getDefenseNumberModifier();
+        $defenseNumberModifier = $this->getDefenseNumberModifier();
         foreach ($this->combatActionCodes as $combatActionCode) {
             if ($combatActionCode->getValue() === CombatActionCode::RUN) {
-                $defenseNumber -= 4;
+                $defenseNumberModifier -= 4;
             }
             if ($combatActionCode->getValue() === CombatActionCode::PUT_OUT_HARDLY_ACCESSIBLE_ITEM) {
-                $defenseNumber -= 4;
+                $defenseNumberModifier -= 4;
             }
         }
 
-        return $defenseNumber;
+        return $defenseNumberModifier;
     }
 
     /**
@@ -333,190 +390,22 @@ class CombatActions extends StrictObject implements \IteratorAggregate, \Countab
      *
      * @return int
      */
-    public function getSpeedBonus()
+    public function getSpeedModifier()
     {
         $speedBonus = 0;
         foreach ($this->combatActionCodes as $combatActionCode) {
+            /** can not be combined with RUN, but that should be solved in @see validateActionCodesCoWork */
             if ($combatActionCode->getValue() === CombatActionCode::MOVE) {
                 /** see PPH page 107 left column */
-                $speedBonus += 8; // can not be combined with run, but that should be solved in constructor
+                $speedBonus += 8;
             }
+            /** can not be combined with MOVE, but that should be solved in @see validateActionCodesCoWork */
             if ($combatActionCode->getValue() === CombatActionCode::RUN) {
                 /** see PPH page 107 left column */
-                $speedBonus += 22; // can not be combined with move, but that should be solved in constructor
+                $speedBonus += 22;
             }
         }
 
         return $speedBonus;
-    }
-
-    /**
-     * @param string|CombatActionCode $combatActionCode
-     * @return bool
-     */
-    public function hasAction($combatActionCode)
-    {
-        return array_key_exists((string)$combatActionCode, $this->combatActionCodes);
-    }
-
-    /**
-     * @param array|string[]|CombatActionCode[] $combatActionCodes
-     * @return bool
-     */
-    public function hasAllThose(array $combatActionCodes)
-    {
-        foreach ($combatActionCodes as $combatActionCode) {
-            if (!$this->hasAction($combatActionCode)) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    /**
-     * @param array|string[]|CombatActionCode[] $combatActionCodes
-     * @return bool
-     */
-    public function hasAtLeastOneOf(array $combatActionCodes)
-    {
-        foreach ($combatActionCodes as $combatActionCode) {
-            if ($this->hasAction($combatActionCode)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Throws away known actions and returns just unknown.
-     * Returned format of combat actions is kept - the same as given (string or CombatActionCode object).
-     *
-     * @param array|string[] CombatActionCode [] $combatActionCodes
-     * @return array|string[]|CombatActionCode[]
-     */
-    public function filterThoseNotHave(array $combatActionCodes)
-    {
-        $notHave = [];
-        foreach ($combatActionCodes as $combatActionCode) {
-            if (!$this->hasAction($combatActionCode)) {
-                $notHave[(string)$combatActionCode] = $combatActionCode;
-            }
-        }
-
-        return $notHave;
-    }
-
-    /**
-     * Gives list of all combat actions separated,by,comma
-     *
-     * @return string
-     */
-    public function __toString()
-    {
-        return implode(
-            ',',
-            array_map(
-                function (CombatActionCode $combatActionCode) {
-                    return $combatActionCode->getValue();
-                },
-                $this->getIterator()->getArrayCopy()
-            )
-        );
-    }
-
-    /**
-     * Uses two hands for defense, not matter if with single weapon-like or two weapons or shields.
-     *
-     * @return bool
-     */
-    public function defensesByTwoHands()
-    {
-        return $this->hasAtLeastOneOf([
-            CombatActionCode::TWO_HANDS_DEFENSE,
-        ]);
-    }
-
-    /**
-     * Uses two hands for attack (ranged or melee), not matter if with single weapon or shield or two weapons or
-     * shields.
-     *
-     * @return bool
-     */
-    public function attacksByTwoHands()
-    {
-        return $this->hasAtLeastOneOf([
-            CombatActionCode::TWO_HANDS_MELEE_ATTACK,
-            CombatActionCode::TWO_HANDS_RANGED_ATTACK,
-        ]);
-    }
-
-    /**
-     * Uses two hands for attack or defense, not matter if with single weapon or shield or two weapons or shields.
-     *
-     * @return bool
-     */
-    public function fightsByTwoHands()
-    {
-        return $this->attacksByTwoHands() || $this->defensesByTwoHands();
-    }
-
-    /**
-     * In other words if is the offhand free for non-attack action.
-     *
-     * @return bool
-     */
-    public function attacksByMainHandOnly()
-    {
-        return $this->hasAtLeastOneOf([
-            CombatActionCode::MAIN_HAND_ONLY_MELEE_ATTACK,
-            CombatActionCode::MAIN_HAND_ONLY_RANGED_ATTACK,
-        ]);
-    }
-
-    /**
-     * @return bool
-     */
-    public function defensesByMainHandOnly()
-    {
-        return $this->hasAction(CombatActionCode::MAIN_HAND_ONLY_DEFENSE);
-    }
-
-    /**
-     * @return bool
-     */
-    public function fightsByMainHandOnly()
-    {
-        return $this->attacksByMainHandOnly() || $this->defensesByMainHandOnly();
-    }
-
-    /**
-     * Is the main hand free for non-attack action?
-     *
-     * @return bool
-     */
-    public function attacksByOffhandOnly()
-    {
-        return $this->hasAtLeastOneOf([
-            CombatActionCode::OFFHAND_ONLY_MELEE_ATTACK,
-            CombatActionCode::OFFHAND_ONLY_RANGED_ATTACK,
-        ]);
-    }
-
-    /**
-     * @return bool
-     */
-    public function defensesByOffhandOnly()
-    {
-        return $this->hasAtLeastOneOf([CombatActionCode::OFFHAND_ONLY_DEFENSE]);
-    }
-
-    /**
-     * @return bool
-     */
-    public function fightsByOffhandOnly()
-    {
-        return $this->attacksByOffhandOnly() || $this->defensesByOffhandOnly();
     }
 }
