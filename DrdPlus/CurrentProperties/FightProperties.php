@@ -7,6 +7,7 @@ use DrdPlus\Codes\Armaments\ShieldCode;
 use DrdPlus\Codes\Armaments\WeaponCode;
 use DrdPlus\Codes\Armaments\WeaponlikeCode;
 use DrdPlus\Codes\ItemHoldingCode;
+use DrdPlus\Codes\WoundTypeCode;
 use DrdPlus\Properties\Base\Strength;
 use DrdPlus\Properties\Combat\Attack;
 use DrdPlus\Properties\Combat\AttackNumber;
@@ -63,9 +64,13 @@ class FightProperties extends StrictObject
      * @param bool $fightsWithTwoWeapons
      * @param ShieldCode $shield
      * @throws \DrdPlus\CurrentProperties\Exceptions\CanNotHoldItByTwoHands
+     * @throws \DrdPlus\CurrentProperties\Exceptions\CanNotHoldItByOneHand
      * @throws \DrdPlus\CurrentProperties\Exceptions\InvalidCombatActionFormat
      * @throws \DrdPlus\CurrentProperties\Exceptions\IncompatibleCombatActions
      * @throws \DrdPlus\CurrentProperties\Exceptions\CanNotUseArmamentBecauseOfMissingStrength
+     * @throws \DrdPlus\CurrentProperties\Exceptions\ImpossibleActionsWithCurrentWeaponlike
+     * @throws \DrdPlus\CurrentProperties\Exceptions\UnknownWeaponHolding
+     * @throws \DrdPlus\CurrentProperties\Exceptions\NoHandLeftForShield
      */
     public function __construct(
         CurrentProperties $currentProperties,
@@ -86,28 +91,54 @@ class FightProperties extends StrictObject
         $this->fightsWithTwoWeapons = $fightsWithTwoWeapons;
         $this->combatActions = $combatActions;
         $this->shield = $shield;
-        $this->guardHoldingCompatibleWithWeaponUsage();
+        $this->guardHoldingCompatibleWithWeaponlike();
+        $this->guardCombatActionsCompatibleWithWeaponlike();
         $this->guardWeaponOrShieldWearable($weaponlike, $this->getStrengthForWeaponlike());
         $this->guardWeaponOrShieldWearable($shield, $this->getStrengthForShield());
     }
 
     /**
      * @throws \DrdPlus\CurrentProperties\Exceptions\CanNotHoldItByTwoHands
-     * @throws \LogicException
+     * @throws \DrdPlus\CurrentProperties\Exceptions\CanNotHoldItByOneHand
      */
-    private function guardHoldingCompatibleWithWeaponUsage()
+    private function guardHoldingCompatibleWithWeaponlike()
     {
         if ($this->fightsWithTwoWeapons && $this->weaponlikeHolding->holdsByTwoHands()) {
             throw new Exceptions\CanNotHoldItByTwoHands(
                 "Can not hold weapon {$this->weaponlike} by two hands when using two weapons"
             );
         }
-        if ($this->weaponlikeHolding->getValue() === ItemHoldingCode::TWO_HANDS) {
-            if (!$this->tables->getArmourer()->canHoldItByTwoHands($this->weaponlike)) {
-                throw new \LogicException();
-            }
-        } else if (!$this->tables->getArmourer()->canHoldItByOneHand($this->weaponlike)) {
-            throw new \LogicException();
+        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+        if ($this->weaponlikeHolding->getValue() === ItemHoldingCode::TWO_HANDS
+            && !$this->tables->getArmourer()->canHoldItByTwoHands($this->weaponlike)
+        ) {
+            throw new Exceptions\CanNotHoldItByTwoHands(
+                "You can not hold {$this->weaponlike} by two hands, despite your claim {$this->weaponlikeHolding}"
+            );
+        }
+        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+        if (in_array($this->weaponlikeHolding->getValue(), [ItemHoldingCode::MAIN_HAND, ItemHoldingCode::OFFHAND], true)
+            && !$this->tables->getArmourer()->canHoldItByOneHand($this->weaponlike)
+        ) {
+            throw new Exceptions\CanNotHoldItByOneHand(
+                "You can not hold {$this->weaponlike} by single hand, despite your claim {$this->weaponlikeHolding}"
+            );
+        }
+    }
+
+    /**
+     * @throws Exceptions\ImpossibleActionsWithCurrentWeaponlike
+     */
+    private function guardCombatActionsCompatibleWithWeaponlike()
+    {
+        $possibleActions = $this->tables->getCombatActionsWithWeaponTypeCompatibilityTable()
+            ->getActionsPossibleWhenFightingWith($this->weaponlike);
+        $currentActions = $this->combatActions->getIterator()->getArrayCopy();
+        $impossibleActions = array_diff($currentActions, $possibleActions);
+        if (count($impossibleActions) > 0) {
+            throw new Exceptions\ImpossibleActionsWithCurrentWeaponlike(
+                "With {$this->weaponlike} you can not do " . implode(', ', $impossibleActions)
+            );
         }
     }
 
@@ -132,6 +163,7 @@ class FightProperties extends StrictObject
 
     /**
      * @return Strength
+     * @throws \DrdPlus\CurrentProperties\Exceptions\UnknownWeaponHolding
      */
     private function getStrengthForWeaponlike()
     {
@@ -145,7 +177,7 @@ class FightProperties extends StrictObject
      * @param WeaponlikeCode $weaponOrShield
      * @param ItemHoldingCode $holding
      * @return Strength
-     * @throws \LogicException
+     * @throws \DrdPlus\CurrentProperties\Exceptions\UnknownWeaponHolding
      */
     private function getStrengthForWeaponOrShield(WeaponlikeCode $weaponOrShield, ItemHoldingCode $holding)
     {
@@ -165,12 +197,14 @@ class FightProperties extends StrictObject
                 // Your less-dominant hand is weaker - try it.
                 return $this->currentProperties->getStrengthForOffhandOnly();
             default :
-                throw new \LogicException();
+                throw new Exceptions\UnknownWeaponHolding('Do not know how to use weapon when holding like ' . $holding);
         }
     }
 
     /**
      * @return Strength
+     * @throws \DrdPlus\CurrentProperties\Exceptions\NoHandLeftForShield
+     * @throws \DrdPlus\CurrentProperties\Exceptions\UnknownWeaponHolding
      */
     private function getStrengthForShield()
     {
@@ -182,7 +216,8 @@ class FightProperties extends StrictObject
      *
      * @param ItemHoldingCode $weaponlikeHolding
      * @return ItemHoldingCode
-     * @throws \LogicException
+     * @throws \DrdPlus\CurrentProperties\Exceptions\NoHandLeftForShield
+     * @throws \DrdPlus\CurrentProperties\Exceptions\UnknownWeaponHolding
      */
     private function getShieldHolding(ItemHoldingCode $weaponlikeHolding)
     {
@@ -192,9 +227,12 @@ class FightProperties extends StrictObject
         if ($weaponlikeHolding->holdsByOffhand()) {
             return ItemHoldingCode::getIt(ItemHoldingCode::MAIN_HAND);
         }
-        throw new \LogicException(
-            "Can not give holding to a shield when holding {$weaponlikeHolding} by two hands"
-        );
+        if ($weaponlikeHolding->holdsByTwoHands()) {
+            throw new Exceptions\NoHandLeftForShield(
+                "Can not give holding to a shield when holding {$weaponlikeHolding} like {$weaponlikeHolding}"
+            );
+        }
+        throw new Exceptions\UnknownWeaponHolding('Do not know how to use weapon when holding like ' . $weaponlikeHolding);
     }
 
     /**
@@ -446,8 +484,8 @@ class FightProperties extends StrictObject
         // action effects
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
         $baseOfWoundsModifier += $this->combatActions->getBaseOfWoundsModifier(
-            $this->weaponlike,
             $this->tables->getWeaponlikeTableByWeaponlikeCode($this->weaponlike)
+                ->getWoundsTypeOf($this->weaponlike) === WoundTypeCode::CRUSH
         );
 
         return new BaseOfWounds($baseOfWoundsModifier, $this->tables->getWoundsTable());
@@ -738,6 +776,7 @@ class FightProperties extends StrictObject
         }
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
         $speed = $this->currentProperties->getSpeed()->add($this->combatActions->getSpeedModifier());
+        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
         $distanceBonus = new DistanceBonus($speed->getValue(), $this->tables->getDistanceTable());
 
         return $distanceBonus->getDistance();
