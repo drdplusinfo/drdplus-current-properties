@@ -1,13 +1,10 @@
 <?php
 namespace DrdPlus\CurrentProperties;
 
-use DrdPlus\Codes\Armaments\WeaponlikeCode;
 use DrdPlus\Codes\CombatActions\CombatActionCode;
 use DrdPlus\Codes\CombatActions\MeleeCombatActionCode;
 use DrdPlus\Codes\CombatActions\RangedCombatActionCode;
-use DrdPlus\Codes\WoundTypeCode;
 use DrdPlus\Tables\Actions\CombatActionsCompatibilityTable;
-use DrdPlus\Tables\Armaments\Partials\WeaponlikeTable;
 use Granam\Integer\Tools\ToInteger;
 use Granam\Strict\Object\StrictObject;
 use Granam\Tools\ValueDescriber;
@@ -15,7 +12,7 @@ use Granam\Tools\ValueDescriber;
 class CombatActions extends StrictObject implements \IteratorAggregate, \Countable
 {
     /** @var int */
-    private $roundsOfAiming;
+    private $finishedRoundsOfAiming;
     /** @var array|CombatActionCode[] */
     private $combatActionCodes;
 
@@ -25,17 +22,33 @@ class CombatActions extends StrictObject implements \IteratorAggregate, \Countab
      *
      * @param array|string[]|CombatActionCode[] $combatActionCodes
      * @param CombatActionsCompatibilityTable $combatActionsCompatibilityTable
-     * @param int $roundsOfAiming zero is for shooting without aim and disrupted aim
+     * @param int $finishedRoundsOfAiming zero is for shooting without aim and disrupted aim
      * @throws \DrdPlus\CurrentProperties\Exceptions\InvalidCombatActionFormat
      * @throws \DrdPlus\CurrentProperties\Exceptions\IncompatibleCombatActions
      * @throws \DrdPlus\CurrentProperties\Exceptions\InvalidRoundsOfAiming
-     * @throws \LogicException TODO
+     * @throws \DrdPlus\CurrentProperties\Exceptions\UnknownCombatActionCode
      */
     public function __construct(
         array $combatActionCodes,
         CombatActionsCompatibilityTable $combatActionsCompatibilityTable,
-        $roundsOfAiming = 0 // zero means you just start aim
+        $finishedRoundsOfAiming = 0 // zero means you just start aim
     )
+    {
+        $sanitizedCombatActionCodes = $this->sanitizeCombatActionCodes($combatActionCodes);
+        $this->validateActionCodesCoWork($sanitizedCombatActionCodes, $combatActionsCompatibilityTable);
+        $this->finishedRoundsOfAiming = $this->sanitizeRoundsOfAiming($finishedRoundsOfAiming);
+        $this->combatActionCodes = [];
+        foreach ($sanitizedCombatActionCodes as $combatActionCode) {
+            $this->combatActionCodes[$combatActionCode->getValue()] = $combatActionCode;
+        }
+    }
+
+    /**
+     * @param array $combatActionCodes
+     * @return array|CombatActionCode[]
+     * @throws \DrdPlus\CurrentProperties\Exceptions\UnknownCombatActionCode
+     */
+    private function sanitizeCombatActionCodes(array $combatActionCodes)
     {
         $sanitizedCombatActionCodes = [];
         foreach ($combatActionCodes as $combatActionCode) {
@@ -46,15 +59,13 @@ class CombatActions extends StrictObject implements \IteratorAggregate, \Countab
             } elseif (in_array((string)$combatActionCode, RangedCombatActionCode::getRangedCombatActionCodes(), true)) {
                 $sanitizedCombatActionCodes[] = RangedCombatActionCode::getIt($combatActionCode);
             } else {
-                throw new \LogicException();
+                throw new Exceptions\UnknownCombatActionCode(
+                    'Given action code is not known: ' . ValueDescriber::describe($combatActionCode)
+                );
             }
         }
-        $this->validateActionCodesCoWork($sanitizedCombatActionCodes, $combatActionsCompatibilityTable);
-        $this->roundsOfAiming = $this->sanitizeRoundsOfAiming($roundsOfAiming);
-        $this->combatActionCodes = [];
-        foreach ($sanitizedCombatActionCodes as $combatActionCode) {
-            $this->combatActionCodes[$combatActionCode->getValue()] = $combatActionCode;
-        }
+
+        return $sanitizedCombatActionCodes;
     }
 
     /**
@@ -116,7 +127,9 @@ class CombatActions extends StrictObject implements \IteratorAggregate, \Countab
         foreach ($combatActionCodes as $combatActionCode) {
             foreach ($combatActionCodes as $anotherCombatActionCode) {
                 /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-                if (!$combatActionsCompatibilityTable->canCombineTwoActions($combatActionCode, $anotherCombatActionCode)) {
+                if ($combatActionCode !== $anotherCombatActionCode
+                    && !$combatActionsCompatibilityTable->canCombineTwoActions($combatActionCode, $anotherCombatActionCode)
+                ) {
                     $incompatible[] = [$combatActionCode, $anotherCombatActionCode];
                 }
             }
@@ -256,7 +269,7 @@ class CombatActions extends StrictObject implements \IteratorAggregate, \Countab
                 $attackNumber += 2;
             }
             if ($combatActionCode->getValue() === RangedCombatActionCode::AIMED_SHOT) {
-                $attackNumber += $this->roundsOfAiming;
+                $attackNumber += $this->finishedRoundsOfAiming;
             }
             if ($combatActionCode->getValue() === CombatActionCode::PUT_OUT_EASILY_ACCESSIBLE_ITEM) {
                 $attackNumber += 2;
