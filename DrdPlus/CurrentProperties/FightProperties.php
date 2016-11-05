@@ -27,6 +27,7 @@ use DrdPlus\Tables\Measurements\Distance\DistanceBonus;
 use DrdPlus\Tables\Measurements\Wounds\WoundsBonus as BaseOfWounds;
 use DrdPlus\Tables\Measurements\Wounds\WoundsBonus;
 use DrdPlus\Tables\Tables;
+use Granam\Boolean\Tools\ToBoolean;
 use Granam\Strict\Object\StrictObject;
 
 class FightProperties extends StrictObject
@@ -47,13 +48,16 @@ class FightProperties extends StrictObject
     private $combatActions;
     /** @var ShieldCode */
     private $shield;
+    /** @var bool */
+    private $enemyIsFasterThanYou;
 
     /**
-     * Warning: to define a weapon used by two hands, do NOT set the second weapon (provide NULL).
-     * If you will provide @see MeleeWeaponCode::HAND or similar "empty" hand, it will be considered as a standard
-     * weapon.
-     * Whenever you provide two weapons for attack or defense then two weapons fighting will be taken into account,
-     * even if you give two "empty" hands like @see MeleeWeaponCode::LEG it is taken as two weapons.
+     * Even shield can be used as a weapon, because it is @see WeaponlikeCode
+     * Use @see ShieldCode::WITHOUT_SHIELD for no shield.
+     * Note about SHIELD and range attack - there is really confusing rule on PPH page 86 right column about AUTOMATIC
+     * cover by shield even if you do not know about attack. So you are not using that shield at all, it just exists.
+     * So there is no malus by missing strength or skill. So you would have full cover with any shield...? Don't think so.
+     * So that rule is IGNORED here.
      *
      * @param CurrentProperties $currentProperties
      * @param CombatActions $combatActions
@@ -63,6 +67,7 @@ class FightProperties extends StrictObject
      * @param ItemHoldingCode $weaponlikeHolding
      * @param bool $fightsWithTwoWeapons
      * @param ShieldCode $shield
+     * @param bool $enemyIsFasterThanYou
      * @throws \DrdPlus\CurrentProperties\Exceptions\CanNotHoldItByTwoHands
      * @throws \DrdPlus\CurrentProperties\Exceptions\CanNotHoldItByOneHand
      * @throws \DrdPlus\CurrentProperties\Exceptions\InvalidCombatActionFormat
@@ -71,6 +76,7 @@ class FightProperties extends StrictObject
      * @throws \DrdPlus\CurrentProperties\Exceptions\ImpossibleActionsWithCurrentWeaponlike
      * @throws \DrdPlus\CurrentProperties\Exceptions\UnknownWeaponHolding
      * @throws \DrdPlus\CurrentProperties\Exceptions\NoHandLeftForShield
+     * @throws \Granam\Boolean\Tools\Exceptions\WrongParameterType
      */
     public function __construct(
         CurrentProperties $currentProperties,
@@ -80,7 +86,8 @@ class FightProperties extends StrictObject
         WeaponlikeCode $weaponlike,
         ItemHoldingCode $weaponlikeHolding,
         $fightsWithTwoWeapons,
-        ShieldCode $shield/** use @see ShieldCode::WITHOUT_SHIELD for no shield */
+        ShieldCode $shield, /** use @see ShieldCode::WITHOUT_SHIELD for no shield */
+        $enemyIsFasterThanYou
     )
     {
         $this->currentProperties = $currentProperties;
@@ -91,6 +98,7 @@ class FightProperties extends StrictObject
         $this->fightsWithTwoWeapons = $fightsWithTwoWeapons;
         $this->combatActions = $combatActions;
         $this->shield = $shield;
+        $this->enemyIsFasterThanYou = ToBoolean::toBoolean($enemyIsFasterThanYou);
         $this->guardHoldingCompatibleWithWeaponlike();
         $this->guardCombatActionsCompatibleWithWeaponlike();
         $this->guardWeaponOrShieldWearable($weaponlike, $this->getStrengthForWeaponlike());
@@ -246,7 +254,7 @@ class FightProperties extends StrictObject
         $fightNumber = new FightNumber(
             $this->currentProperties->getProfession()->getCode(),
             $this->currentProperties,
-            $this->currentProperties->getSize()
+            $this->currentProperties->getSize() // TODO fix - malus per height bonus, NOT size!!! see PPH page 91 left column
         );
 
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
@@ -552,7 +560,8 @@ class FightProperties extends StrictObject
     // DEFENSE
 
     /**
-     * Your defense WITHOUT weapon (@see getDefenseNumberWithShield and @see getDefenseNumberWithMainHand ).
+     * Your defense WITHOUT weapon or shield.
+     * For standard defense @see getDefenseNumberWithShield and @see getDefenseNumberWithWeaponlike
      * Note: armor affects agility (can give restriction), but does NOT affect defense number directly -
      * its protection is used after hit to lower final damage.
      *
@@ -560,8 +569,23 @@ class FightProperties extends StrictObject
      */
     public function getDefenseNumber()
     {
+        if ($this->enemyIsFasterThanYou) {
+            return $this->getDefenseNumberAgainstFasterOpponent();
+        }
+
+        return $this->getDefenseNumberAgainstSlowerOpponent();
+    }
+
+    /**
+     * You CAN BE affected by some of your actions because someone attacked you before you finished them.
+     * Your defense WITHOUT weapon  nor shield. shield.
+     *
+     * @return DefenseNumber
+     */
+    private function getDefenseNumberAgainstFasterOpponent()
+    {
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        return $this->getBaseDefenseNumber()->add($this->combatActions->getDefenseNumberModifier());
+        return $this->getBaseDefenseNumber()->add($this->combatActions->getDefenseNumberModifierAgainstFasterOpponent());
     }
 
     /**
@@ -573,16 +597,14 @@ class FightProperties extends StrictObject
     }
 
     /**
-     * Your defense WITHOUT weapon (@see getDefenseNumberWithShield and @see getDefenseNumberWithMainHand ).
-     * Note: armor affects agility (can give restriction), but they do NOT affect defense number directly -
-     * its protection is used after hit to lower final damage.
+     * You are NOT affected by any of your action just because someone attacked you before you are ready.
      *
      * @return DefenseNumber
      */
-    public function getDefenseNumberAgainstFasterOpponent()
+    private function getDefenseNumberAgainstSlowerOpponent()
     {
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        return $this->getBaseDefenseNumber()->add($this->combatActions->getDefenseNumberModifierAgainstFasterOpponent());
+        return $this->getBaseDefenseNumber()->add($this->combatActions->getDefenseNumberModifier());
     }
 
     /**
@@ -637,15 +659,6 @@ class FightProperties extends StrictObject
     }
 
     /**
-     * @return DefenseNumber
-     */
-    public function getDefenseNumberWithWeaponlikeAgainstFasterOpponent()
-    {
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        return $this->getDefenseNumberAgainstFasterOpponent()->add($this->getCoverWithWeaponlike());
-    }
-
-    /**
      * You have to choose
      *  - if cover by shield (can twice per round even if already attacked)
      *  - or by weapon (can only once per round and only if you have attacked before defense or if you simply did not
@@ -687,16 +700,9 @@ class FightProperties extends StrictObject
     }
 
     /**
-     * @return DefenseNumber
-     */
-    public function getDefenseNumberWithShieldAgainstFasterOpponent()
-    {
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        return $this->getDefenseNumberAgainstFasterOpponent()->add($this->getCoverWithShield());
-    }
-
-    /**
-     * Base defense number WITHOUT weapon nor shield.
+     * Base defense number WITHOUT weapon
+     * But shield cover is counted AUTOMATICALLY because shield cover is taken into account
+     * even if you do not know about attack, see PPH page 86 right column.
      *
      * @return DefenseNumberAgainstShooting
      */
@@ -706,59 +712,13 @@ class FightProperties extends StrictObject
     }
 
     /**
+     * Note: you do not know how to cover against shooting by a weaponlike without special skill and that skill is not part of PPH.
+     *
      * @return DefenseNumberAgainstShooting
      */
-    public function getDefenseNumberWithWeaponlikeAgainstShooting()
-    {
-        return new DefenseNumberAgainstShooting(
-            $this->getDefenseNumberWithWeaponlike(),
-            $this->currentProperties->getSize()
-        );
-    }
-
-    /**
-     * @return DefenseNumberAgainstShooting
-     */
-    public function getDefenseNumberWithOffhandAgainstShooting()
+    public function getDefenseNumberWithShieldAgainstShooting()
     {
         return new DefenseNumberAgainstShooting($this->getDefenseNumberWithShield(), $this->currentProperties->getSize());
-    }
-
-    /**
-     * Shield cover is always counted to your defense against shooting, even if you does not know about attack
-     * (of course only if it has a sense - shield hardly covers your back if you hold it in hand).
-     *
-     * @return DefenseNumberAgainstShooting
-     */
-    public function getDefenseNumberAgainstShootingCoveredPassivelyByShield()
-    {
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        return $this->getDefenseNumberAgainstShooting()
-            ->add($this->tables->getArmourer()->getCoverOfWeaponOrShield($this->shield));
-    }
-
-    /**
-     * @return DefenseNumberAgainstShooting
-     */
-    public function getDefenseNumberAgainstShootingAndFasterOpponent()
-    {
-        return new DefenseNumberAgainstShooting(
-            $this->getDefenseNumberAgainstFasterOpponent(),
-            $this->currentProperties->getSize()
-        );
-    }
-
-    /**
-     * Shield cover is always counted to your defense against shooting, even if you does not know about attack
-     * (of course only if it has a sense - shield hardly covers your back if you hold it in hand).
-     *
-     * @return DefenseNumberAgainstShooting
-     */
-    public function getDefenseNumberAgainstShootingAndFasterOpponentCoveredPassivelyByShield()
-    {
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        return $this->getDefenseNumberAgainstShootingAndFasterOpponent()
-            ->add($this->tables->getArmourer()->getCoverOfWeaponOrShield($this->shield));
     }
 
     // MOVEMENT
