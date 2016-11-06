@@ -15,6 +15,7 @@ use DrdPlus\Properties\Base\Knack;
 use DrdPlus\Properties\Base\Strength;
 use DrdPlus\Properties\Base\Will;
 use DrdPlus\Properties\Body\Age;
+use DrdPlus\Properties\Body\Height;
 use DrdPlus\Properties\Body\HeightInCm;
 use DrdPlus\Properties\Body\Size;
 use DrdPlus\Properties\Body\WeightInKg;
@@ -24,6 +25,7 @@ use DrdPlus\Properties\Derived\Dangerousness;
 use DrdPlus\Properties\Derived\Dignity;
 use DrdPlus\Properties\Derived\Endurance;
 use DrdPlus\Properties\Derived\FatigueBoundary;
+use DrdPlus\Properties\Derived\Parts\AbstractDerivedProperty;
 use DrdPlus\Properties\Derived\Senses;
 use DrdPlus\Properties\Derived\Speed;
 use DrdPlus\Properties\Derived\Toughness;
@@ -55,11 +57,11 @@ class CurrentProperties extends StrictObject implements BasePropertiesInterface
     private $tables;
 
     /**
-     * To give numbers for situations with different or even without weapon, shield, armor and helm, just create new instance
-     * with desired equipment.
-     * Same if weight of cargo can change - just create new instance (because it can affect strength and made unusable
-     * previously usable armaments and we need to check that).
-     * For "no weapon" use \DrdPlus\Codes\Armaments\MeleeWeaponCode::HAND, for no shield use \DrdPlus\Codes\Armaments\ShieldCode::WITHOUT_SHIELD
+     * To give numbers for situations with different or even without weapon, shield, armor and helm, just create new
+     * instance with desired equipment. Same if weight of cargo can change - just create new instance (because it can
+     * affect strength and made unusable previously usable armaments and we need to check that). For "no weapon" use
+     * \DrdPlus\Codes\Armaments\MeleeWeaponCode::HAND, for no shield use
+     * \DrdPlus\Codes\Armaments\ShieldCode::WITHOUT_SHIELD
      *
      * @param PropertiesByLevels $propertiesByLevels
      * @param Health $health
@@ -139,9 +141,9 @@ class CurrentProperties extends StrictObject implements BasePropertiesInterface
     /**
      * Current strength affected even by load.
      * It is NOT the constant strength, used for body parameters as endurance and so.
-     * Note about both-hands weapon keeping - bonus +2 is NOT part of this strength in both-hands usage of a single-hand weapon,
-     * because it could cause a lot of confusion - instead of it is two-hands bonus immediately and automatically included
-     * both for missing weapon / shield strength as well as +2 bonus to base of wounds
+     * Note about both-hands weapon keeping - bonus +2 is NOT part of this strength in both-hands usage of a
+     * single-hand weapon, because it could cause a lot of confusion - instead of it is two-hands bonus immediately and
+     * automatically included both for missing weapon / shield strength as well as +2 bonus to base of wounds
      *
      * @return Strength
      */
@@ -192,7 +194,6 @@ class CurrentProperties extends StrictObject implements BasePropertiesInterface
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
         return $this->getStrength()->sub(-2); // offhand has a malus to strength (try to carry you purchase in offhand sometimes...)
     }
-
 
     /**
      * @return Agility
@@ -291,6 +292,16 @@ class CurrentProperties extends StrictObject implements BasePropertiesInterface
     }
 
     /**
+     * Bonus of height in fact - usable for Fight and Speed
+     *
+     * @return Height
+     */
+    public function getHeight()
+    {
+        return $this->propertiesByLevels->getHeight();
+    }
+
+    /**
      * @return Age
      */
     public function getAge()
@@ -327,11 +338,11 @@ class CurrentProperties extends StrictObject implements BasePropertiesInterface
      */
     public function getSpeed()
     {
-        return new Speed($this->getStrength(), $this->getAgility(), $this->getSize());
+        return new Speed($this->getStrength(), $this->getAgility(), $this->getHeight());
     }
 
     /**
-     * @return Senses
+     * @return AbstractDerivedProperty|Senses
      * @throws \DrdPlus\Health\Exceptions\NeedsToRollAgainstMalusFirst
      */
     public function getSenses()

@@ -56,8 +56,8 @@ class FightProperties extends StrictObject
      * Use @see ShieldCode::WITHOUT_SHIELD for no shield.
      * Note about SHIELD and range attack - there is really confusing rule on PPH page 86 right column about AUTOMATIC
      * cover by shield even if you do not know about attack. So you are not using that shield at all, it just exists.
-     * So there is no malus by missing strength or skill. So you would have full cover with any shield...? Don't think so.
-     * So that rule is IGNORED here.
+     * So there is no malus by missing strength or skill. So you would have full cover with any shield...? Don't think
+     * so. So that rule is IGNORED here.
      *
      * @param CurrentProperties $currentProperties
      * @param CombatActions $combatActions
@@ -254,7 +254,7 @@ class FightProperties extends StrictObject
         $fightNumber = new FightNumber(
             $this->currentProperties->getProfession()->getCode(),
             $this->currentProperties,
-            $this->currentProperties->getSize() // TODO fix - malus per height bonus, NOT size!!! see PPH page 91 left column
+            $this->currentProperties->getHeight()
         );
 
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
@@ -712,7 +712,8 @@ class FightProperties extends StrictObject
     }
 
     /**
-     * Note: you do not know how to cover against shooting by a weaponlike without special skill and that skill is not part of PPH.
+     * Note: you do not know how to cover against shooting by a weaponlike without special skill and that skill is not
+     * part of PPH.
      *
      * @return DefenseNumberAgainstShooting
      */
