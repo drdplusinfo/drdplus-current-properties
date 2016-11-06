@@ -55,6 +55,32 @@ class CurrentProperties extends StrictObject implements BasePropertiesInterface
     private $cargoWeight;
     /** @var Tables */
     private $tables;
+    /** @var Strength */
+    private $strength;
+    /** @var Strength */
+    private $strengthWithoutMalusFromLoad;
+    /** @var Strength */
+    private $strengthForOffhandOnly;
+    /** @var Agility */
+    private $agility;
+    /** @var Knack */
+    private $knack;
+    /** @var Will */
+    private $will;
+    /** @var Intelligence */
+    private $intelligence;
+    /** @var Charisma */
+    private $charisma;
+    /** @var Speed */
+    private $speed;
+    /** @var Senses */
+    private $senses;
+    /** @var Beauty */
+    private $beauty;
+    /** @var Dangerousness */
+    private $dangerousness;
+    /** @var Dignity */
+    private $dignity;
 
     /**
      * To give numbers for situations with different or even without weapon, shield, armor and helm, just create new
@@ -93,23 +119,22 @@ class CurrentProperties extends StrictObject implements BasePropertiesInterface
         $this->subRaceCode = $subRaceCode;
         $this->cargoWeight = $cargoWeight;
         $this->tables = $tables;
-        $this->guardArmamentWearable($wornBodyArmor, $this->getStrength());
+        $this->guardArmamentWearable($wornBodyArmor);
         $this->wornBodyArmor = $wornBodyArmor;
-        $this->guardArmamentWearable($wornHelm, $this->getStrength());
+        $this->guardArmamentWearable($wornHelm);
         $this->wornHelm = $wornHelm;
     }
 
     /**
      * @param ArmamentCode $armamentCode
-     * @param Strength $currentStrength
      * @throws Exceptions\CanNotUseArmamentBecauseOfMissingStrength
      */
-    private function guardArmamentWearable(ArmamentCode $armamentCode, Strength $currentStrength)
+    private function guardArmamentWearable(ArmamentCode $armamentCode)
     {
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        if (!$this->tables->getArmourer()->canUseArmament($armamentCode, $currentStrength, $this->getSize())) {
+        if (!$this->tables->getArmourer()->canUseArmament($armamentCode, $this->getStrength(), $this->getSize())) {
             throw new Exceptions\CanNotUseArmamentBecauseOfMissingStrength(
-                "'{$armamentCode}' is too heavy to be used by with strength {$currentStrength}"
+                "'{$armamentCode}' is too heavy to be used by with strength {$this->getStrength()}"
             );
         }
     }
@@ -149,13 +174,17 @@ class CurrentProperties extends StrictObject implements BasePropertiesInterface
      */
     public function getStrength()
     {
-        $strengthWithoutMalusFromLoad = $this->getStrengthWithoutMalusFromLoad();
+        if ($this->strength === null) {
+            $strengthWithoutMalusFromLoad = $this->getStrengthWithoutMalusFromLoad();
 
-        // malus from missing strength is applied just once, even if it lowers the strength itself
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        return $strengthWithoutMalusFromLoad->add(
-            $this->tables->getWeightTable()->getMalusFromLoad($strengthWithoutMalusFromLoad, $this->cargoWeight)
-        );
+            // malus from missing strength is applied just once, even if it lowers the strength itself
+            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+            $this->strength = $strengthWithoutMalusFromLoad->add(
+                $this->tables->getWeightTable()->getMalusFromLoad($strengthWithoutMalusFromLoad, $this->cargoWeight)
+            );
+        }
+
+        return $this->strength;
     }
 
     /**
@@ -163,8 +192,13 @@ class CurrentProperties extends StrictObject implements BasePropertiesInterface
      */
     private function getStrengthWithoutMalusFromLoad()
     {
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        return $this->propertiesByLevels->getStrength()->add($this->health->getStrengthMalusFromAfflictions());
+        if ($this->strengthWithoutMalusFromLoad === null) {
+            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+            $this->strengthWithoutMalusFromLoad = $this->propertiesByLevels->getStrength()
+                ->add($this->health->getStrengthMalusFromAfflictions());
+        }
+
+        return $this->strengthWithoutMalusFromLoad;
     }
 
     /**
@@ -191,8 +225,12 @@ class CurrentProperties extends StrictObject implements BasePropertiesInterface
      */
     public function getStrengthForOffhandOnly()
     {
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        return $this->getStrength()->sub(-2); // offhand has a malus to strength (try to carry you purchase in offhand sometimes...)
+        if ($this->strengthForOffhandOnly === null) {
+            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+            $this->strengthForOffhandOnly = $this->getStrength()->sub(-2); // offhand has a malus to strength (try to carry you purchase in offhand sometimes...)
+        }
+
+        return $this->strengthForOffhandOnly;
     }
 
     /**
@@ -200,8 +238,12 @@ class CurrentProperties extends StrictObject implements BasePropertiesInterface
      */
     public function getAgility()
     {
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        return $this->propertiesByLevels->getAgility()->add($this->getAgilityTotalMalus());
+        if ($this->agility === null) {
+            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+            $this->agility = $this->propertiesByLevels->getAgility()->add($this->getAgilityTotalMalus());
+        }
+
+        return $this->agility;
     }
 
     /**
@@ -238,14 +280,18 @@ class CurrentProperties extends StrictObject implements BasePropertiesInterface
      */
     public function getKnack()
     {
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        return $this->propertiesByLevels->getKnack()->add(
-            $this->health->getKnackMalusFromAfflictions()
-            + $this->tables->getWeightTable()->getMalusFromLoad(
-                $this->getStrengthWithoutMalusFromLoad(),
-                $this->cargoWeight
-            )
-        );
+        if ($this->knack === null) {
+            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+            $this->knack = $this->propertiesByLevels->getKnack()->add(
+                $this->health->getKnackMalusFromAfflictions()
+                + $this->tables->getWeightTable()->getMalusFromLoad(
+                    $this->getStrengthWithoutMalusFromLoad(),
+                    $this->cargoWeight
+                )
+            );
+        }
+
+        return $this->knack;
     }
 
     /**
@@ -253,8 +299,12 @@ class CurrentProperties extends StrictObject implements BasePropertiesInterface
      */
     public function getWill()
     {
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        return $this->propertiesByLevels->getWill()->add($this->health->getWillMalusFromAfflictions());
+        if ($this->will === null) {
+            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+            $this->will = $this->propertiesByLevels->getWill()->add($this->health->getWillMalusFromAfflictions());
+        }
+
+        return $this->will;
     }
 
     /**
@@ -262,8 +312,13 @@ class CurrentProperties extends StrictObject implements BasePropertiesInterface
      */
     public function getIntelligence()
     {
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        return $this->propertiesByLevels->getIntelligence()->add($this->health->getIntelligenceMalusFromAfflictions());
+        if ($this->intelligence === null) {
+            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+            $this->intelligence = $this->propertiesByLevels->getIntelligence()
+                ->add($this->health->getIntelligenceMalusFromAfflictions());
+        }
+
+        return $this->intelligence;
     }
 
     /**
@@ -271,8 +326,12 @@ class CurrentProperties extends StrictObject implements BasePropertiesInterface
      */
     public function getCharisma()
     {
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        return $this->propertiesByLevels->getCharisma()->add($this->health->getCharismaMalusFromAfflictions());
+        if ($this->charisma === null) {
+            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+            $this->charisma = $this->propertiesByLevels->getCharisma()->add($this->health->getCharismaMalusFromAfflictions());
+        }
+
+        return $this->charisma;
     }
 
     /**
@@ -338,7 +397,11 @@ class CurrentProperties extends StrictObject implements BasePropertiesInterface
      */
     public function getSpeed()
     {
-        return new Speed($this->getStrength(), $this->getAgility(), $this->getHeight());
+        if ($this->speed === null) {
+            $this->speed = new Speed($this->getStrength(), $this->getAgility(), $this->getHeight());
+        }
+
+        return $this->speed;
     }
 
     /**
@@ -347,10 +410,13 @@ class CurrentProperties extends StrictObject implements BasePropertiesInterface
      */
     public function getSenses()
     {
-        $senses = new Senses($this->getKnack(), $this->raceCode, $this->subRaceCode, $this->tables->getRacesTable());
+        if ($this->senses === null) {
+            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+            $this->senses = (new Senses($this->getKnack(), $this->raceCode, $this->subRaceCode, $this->tables->getRacesTable()))
+                ->add($this->health->getSignificantMalusFromPains($this->getWoundBoundary()));
+        }
 
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        return $senses->add($this->health->getSignificantMalusFromPains($this->getWoundBoundary()));
+        return $this->senses;
     }
 
     /**
@@ -358,7 +424,11 @@ class CurrentProperties extends StrictObject implements BasePropertiesInterface
      */
     public function getBeauty()
     {
-        return new Beauty($this->getAgility(), $this->getKnack(), $this->getCharisma());
+        if ($this->beauty === null) {
+            $this->beauty = new Beauty($this->getAgility(), $this->getKnack(), $this->getCharisma());
+        }
+
+        return $this->beauty;
     }
 
     /**
@@ -366,7 +436,11 @@ class CurrentProperties extends StrictObject implements BasePropertiesInterface
      */
     public function getDangerousness()
     {
-        return new Dangerousness($this->getStrength(), $this->getWill(), $this->getCharisma());
+        if ($this->dangerousness === null) {
+            $this->dangerousness = new Dangerousness($this->getStrength(), $this->getWill(), $this->getCharisma());
+        }
+
+        return $this->dangerousness;
     }
 
     /**
@@ -374,7 +448,11 @@ class CurrentProperties extends StrictObject implements BasePropertiesInterface
      */
     public function getDignity()
     {
-        return new Dignity($this->getIntelligence(), $this->getWill(), $this->getCharisma());
+        if ($this->dignity === null) {
+            $this->dignity = new Dignity($this->getIntelligence(), $this->getWill(), $this->getCharisma());
+        }
+
+        return $this->dignity;
     }
 
     /**
