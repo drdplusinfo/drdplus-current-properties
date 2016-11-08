@@ -75,43 +75,17 @@ class CurrentPropertiesTest extends TestWithMockery
             $tables
         );
 
-        $propertiesByLevels->shouldReceive('getAge')->andReturn('baz');
-        self::assertSame('baz', $currentProperties->getAge());
-
-        $propertiesByLevels->shouldReceive('getAgility')->andReturn($agilityWithoutMaluses = $this->mockery(Agility::class));
-        $armourer->shouldReceive('getAgilityMalusByStrengthWithArmor')
-            ->with($bodyArmorCode, $strength, $size)
-            ->andReturn(123);
-        $armourer->shouldReceive('getAgilityMalusByStrengthWithArmor')->with($helmCode, $strength, $size)->andReturn(456);
-        $health->shouldReceive('getAgilityMalusFromAfflictions')->andReturn(789);
-        $agilityWithoutMaluses->shouldReceive('add')
-            ->with(123 + 456 + 789 + $malusFromLoad)
-            ->andReturn($agility = $this->createAgility(456));
-        self::assertSame($agility, $currentProperties->getAgility());
-
-        $propertiesByLevels->shouldReceive('getHeightInCm')->andReturn($heightInCm = 'foo bar');
-        self::assertSame($heightInCm, $currentProperties->getHeightInCm());
-
-        $propertiesByLevels->shouldReceive('getHeight')->andReturn($height = $this->createHeight(123789));
-        self::assertSame($height, $currentProperties->getHeight());
-
-        $propertiesByLevels->shouldReceive('getKnack')->andReturn($baseKnack = Knack::getIt(667788));
-        $health->shouldReceive('getKnackMalusFromAfflictions')
-            ->andReturn($knackMalusFromAfflictions = -3344);
-        self::assertSame(
-            $knack = Knack::getIt($baseKnack->getValue() + $knackMalusFromAfflictions + $malusFromLoad),
-            $currentProperties->getKnack()
+        $this->I_can_get_current_properties(
+            $currentProperties,
+            $propertiesByLevels,
+            $armourer,
+            $bodyArmorCode,
+            $helmCode,
+            $strength,
+            $size,
+            $health,
+            $malusFromLoad
         );
-
-        $propertiesByLevels->shouldReceive('getCharisma')->andReturn($baseCharisma = Charisma::getIt(556655));
-        $health->shouldReceive('getCharismaMalusFromAfflictions')
-            ->andReturn($charismaMalusFromAfflictions = -6666674);
-        self::assertSame(
-            $charisma = Charisma::getIt($baseCharisma->getValue() + $charismaMalusFromAfflictions),
-            $currentProperties->getCharisma()
-        );
-
-        self::assertEquals(new Beauty($agility, $knack, $charisma), $currentProperties->getBeauty());
     }
 
     /**
@@ -184,6 +158,68 @@ class CurrentPropertiesTest extends TestWithMockery
     private function createTables()
     {
         return $this->mockery(Tables::class);
+    }
+
+    /**
+     * @param CurrentProperties $currentProperties
+     * @param PropertiesByLevels|\Mockery\MockInterface $propertiesByLevels
+     * @param Armourer|\Mockery\MockInterface $armourer
+     * @param BodyArmorCode|\Mockery\MockInterface $bodyArmorCode
+     * @param HelmCode|\Mockery\MockInterface $helmCode
+     * @param Strength|\Mockery\MockInterface $strength
+     * @param Size|\Mockery\MockInterface $size
+     * @param Health|\Mockery\MockInterface $health
+     * @param int $malusFromLoad
+     */
+    private function I_can_get_current_properties(
+        CurrentProperties $currentProperties,
+        PropertiesByLevels $propertiesByLevels,
+        Armourer $armourer,
+        BodyArmorCode $bodyArmorCode,
+        HelmCode $helmCode,
+        Strength $strength,
+        Size $size,
+        Health $health,
+        $malusFromLoad
+    )
+    {
+        $propertiesByLevels->shouldReceive('getAge')->andReturn('baz');
+        self::assertSame('baz', $currentProperties->getAge());
+
+        $propertiesByLevels->shouldReceive('getAgility')->andReturn($agilityWithoutMaluses = $this->mockery(Agility::class));
+        $armourer->shouldReceive('getAgilityMalusByStrengthWithArmor')
+            ->with($bodyArmorCode, $strength, $size)
+            ->andReturn(123);
+        $armourer->shouldReceive('getAgilityMalusByStrengthWithArmor')->with($helmCode, $strength, $size)->andReturn(456);
+        $health->shouldReceive('getAgilityMalusFromAfflictions')->andReturn(789);
+        $agilityWithoutMaluses->shouldReceive('add')
+            ->with(123 + 456 + 789 + $malusFromLoad)
+            ->andReturn($agility = $this->createAgility(456));
+        self::assertSame($agility, $currentProperties->getAgility());
+
+        $propertiesByLevels->shouldReceive('getHeightInCm')->andReturn($heightInCm = 'foo bar');
+        self::assertSame($heightInCm, $currentProperties->getHeightInCm());
+
+        $propertiesByLevels->shouldReceive('getHeight')->andReturn($height = $this->createHeight(123789));
+        self::assertSame($height, $currentProperties->getHeight());
+
+        $propertiesByLevels->shouldReceive('getKnack')->andReturn($baseKnack = Knack::getIt(667788));
+        $health->shouldReceive('getKnackMalusFromAfflictions')
+            ->andReturn($knackMalusFromAfflictions = -3344);
+        self::assertSame(
+            $knack = Knack::getIt($baseKnack->getValue() + $knackMalusFromAfflictions + $malusFromLoad),
+            $currentProperties->getKnack()
+        );
+
+        $propertiesByLevels->shouldReceive('getCharisma')->andReturn($baseCharisma = Charisma::getIt(556655));
+        $health->shouldReceive('getCharismaMalusFromAfflictions')
+            ->andReturn($charismaMalusFromAfflictions = -6666674);
+        self::assertSame(
+            $charisma = Charisma::getIt($baseCharisma->getValue() + $charismaMalusFromAfflictions),
+            $currentProperties->getCharisma()
+        );
+
+        self::assertEquals(new Beauty($agility, $knack, $charisma), $currentProperties->getBeauty());
     }
 
     /**
