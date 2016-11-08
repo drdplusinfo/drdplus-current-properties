@@ -9,8 +9,12 @@ use DrdPlus\CurrentProperties\CurrentProperties;
 use DrdPlus\Health\Health;
 use DrdPlus\Professions\Profession;
 use DrdPlus\Properties\Base\Agility;
+use DrdPlus\Properties\Base\Charisma;
+use DrdPlus\Properties\Base\Knack;
 use DrdPlus\Properties\Base\Strength;
+use DrdPlus\Properties\Body\Height;
 use DrdPlus\Properties\Body\Size;
+use DrdPlus\Properties\Derived\Beauty;
 use DrdPlus\PropertiesByLevels\PropertiesByLevels;
 use DrdPlus\Tables\Armaments\Armourer;
 use DrdPlus\Tables\Measurements\Weight\Weight;
@@ -71,24 +75,43 @@ class CurrentPropertiesTest extends TestWithMockery
             $tables
         );
 
-        $propertiesByLevels->shouldReceive('getAge')
-            ->andReturn('baz');
+        $propertiesByLevels->shouldReceive('getAge')->andReturn('baz');
         self::assertSame('baz', $currentProperties->getAge());
 
-        $propertiesByLevels->shouldReceive('getAgility')
-            ->andReturn($agilityWithoutMaluses = $this->mockery(Agility::class));
+        $propertiesByLevels->shouldReceive('getAgility')->andReturn($agilityWithoutMaluses = $this->mockery(Agility::class));
         $armourer->shouldReceive('getAgilityMalusByStrengthWithArmor')
             ->with($bodyArmorCode, $strength, $size)
             ->andReturn(123);
-        $armourer->shouldReceive('getAgilityMalusByStrengthWithArmor')
-            ->with($helmCode, $strength, $size)
-            ->andReturn(456);
-        $health->shouldReceive('getAgilityMalusFromAfflictions')
-            ->andReturn(789);
+        $armourer->shouldReceive('getAgilityMalusByStrengthWithArmor')->with($helmCode, $strength, $size)->andReturn(456);
+        $health->shouldReceive('getAgilityMalusFromAfflictions')->andReturn(789);
         $agilityWithoutMaluses->shouldReceive('add')
             ->with(123 + 456 + 789 + $malusFromLoad)
-            ->andReturn('qux');
-        self::assertSame('qux', $currentProperties->getAgility());
+            ->andReturn($agility = $this->createAgility(456));
+        self::assertSame($agility, $currentProperties->getAgility());
+
+        $propertiesByLevels->shouldReceive('getHeightInCm')->andReturn($heightInCm = 'foo bar');
+        self::assertSame($heightInCm, $currentProperties->getHeightInCm());
+
+        $propertiesByLevels->shouldReceive('getHeight')->andReturn($height = $this->createHeight(123789));
+        self::assertSame($height, $currentProperties->getHeight());
+
+        $propertiesByLevels->shouldReceive('getKnack')->andReturn($baseKnack = Knack::getIt(667788));
+        $health->shouldReceive('getKnackMalusFromAfflictions')
+            ->andReturn($knackMalusFromAfflictions = -3344);
+        self::assertSame(
+            $knack = Knack::getIt($baseKnack->getValue() + $knackMalusFromAfflictions + $malusFromLoad),
+            $currentProperties->getKnack()
+        );
+
+        $propertiesByLevels->shouldReceive('getCharisma')->andReturn($baseCharisma = Charisma::getIt(556655));
+        $health->shouldReceive('getCharismaMalusFromAfflictions')
+            ->andReturn($charismaMalusFromAfflictions = -6666674);
+        self::assertSame(
+            $charisma = Charisma::getIt($baseCharisma->getValue() + $charismaMalusFromAfflictions),
+            $currentProperties->getCharisma()
+        );
+
+        self::assertEquals(new Beauty($agility, $knack, $charisma), $currentProperties->getBeauty());
     }
 
     /**
@@ -161,5 +184,31 @@ class CurrentPropertiesTest extends TestWithMockery
     private function createTables()
     {
         return $this->mockery(Tables::class);
+    }
+
+    /**
+     * @param $value
+     * @return \Mockery\MockInterface|Agility
+     */
+    private function createAgility($value)
+    {
+        $agility = $this->mockery(Agility::class);
+        $agility->shouldReceive('getValue')
+            ->andReturn($value);
+
+        return $agility;
+    }
+
+    /**
+     * @param $value
+     * @return \Mockery\MockInterface|Height
+     */
+    private function createHeight($value)
+    {
+        $height = $this->mockery(Height::class);
+        $height->shouldReceive('getValue')
+            ->andReturn($value);
+
+        return $height;
     }
 }
