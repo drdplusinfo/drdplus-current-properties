@@ -206,20 +206,18 @@ class CurrentPropertiesTest extends TestWithMockery
         $propertiesByLevels->shouldReceive('getKnack')->andReturn($baseKnack = Knack::getIt(667788));
         $health->shouldReceive('getKnackMalusFromAfflictions')
             ->andReturn($knackMalusFromAfflictions = -3344);
-        self::assertSame(
-            $knack = Knack::getIt($baseKnack->getValue() + $knackMalusFromAfflictions + $malusFromLoad),
-            $currentProperties->getKnack()
-        );
+        self::assertInstanceOf(Knack::class, $currentProperties->getKnack());
+        $expectedKnack = Knack::getIt($baseKnack->getValue() + $knackMalusFromAfflictions + $malusFromLoad);
+        self::assertSame($expectedKnack->getValue(), $currentProperties->getKnack()->getValue());
 
         $propertiesByLevels->shouldReceive('getCharisma')->andReturn($baseCharisma = Charisma::getIt(556655));
         $health->shouldReceive('getCharismaMalusFromAfflictions')
             ->andReturn($charismaMalusFromAfflictions = -6666674);
-        self::assertSame(
-            $charisma = Charisma::getIt($baseCharisma->getValue() + $charismaMalusFromAfflictions),
-            $currentProperties->getCharisma()
-        );
+        self::assertInstanceOf(Charisma::class, $currentProperties->getCharisma());
+        $expectedCharisma = Charisma::getIt($baseCharisma->getValue() + $charismaMalusFromAfflictions);
+        self::assertSame($expectedCharisma->getValue(), $currentProperties->getCharisma()->getValue());
 
-        self::assertEquals(new Beauty($agility, $knack, $charisma), $currentProperties->getBeauty());
+        self::assertEquals(new Beauty($agility, $expectedKnack, $expectedCharisma), $currentProperties->getBeauty());
     }
 
     /**
