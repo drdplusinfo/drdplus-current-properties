@@ -95,14 +95,14 @@ class FightProperties extends StrictObject
         $this->tables = $tables;
         $this->weaponlike = $weaponlike;
         $this->weaponlikeHolding = $weaponlikeHolding;
-        $this->fightsWithTwoWeapons = $fightsWithTwoWeapons;
+        $this->fightsWithTwoWeapons = ToBoolean::toBoolean($fightsWithTwoWeapons);
         $this->combatActions = $combatActions;
         $this->shield = $shield;
         $this->enemyIsFasterThanYou = ToBoolean::toBoolean($enemyIsFasterThanYou);
         $this->guardHoldingCompatibleWithWeaponlike();
         $this->guardCombatActionsCompatibleWithWeaponlike();
-        $this->guardWeaponOrShieldWearable($weaponlike, $this->getStrengthForWeaponlike());
-        $this->guardWeaponOrShieldWearable($shield, $this->getStrengthForShield());
+        $this->guardWeaponlikeWearable();
+        $this->guardShieldWearable();
     }
 
     /**
@@ -117,7 +117,7 @@ class FightProperties extends StrictObject
             );
         }
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        if ($this->weaponlikeHolding->getValue() === ItemHoldingCode::TWO_HANDS
+        if ($this->weaponlikeHolding->holdsByTwoHands()
             && !$this->tables->getArmourer()->canHoldItByTwoHands($this->weaponlike)
         ) {
             throw new Exceptions\CanNotHoldItByTwoHands(
@@ -125,7 +125,7 @@ class FightProperties extends StrictObject
             );
         }
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        if (in_array($this->weaponlikeHolding->getValue(), [ItemHoldingCode::MAIN_HAND, ItemHoldingCode::OFFHAND], true)
+        if ($this->weaponlikeHolding->holdsByOneHand()
             && !$this->tables->getArmourer()->canHoldItByOneHand($this->weaponlike)
         ) {
             throw new Exceptions\CanNotHoldItByOneHand(
@@ -151,9 +151,28 @@ class FightProperties extends StrictObject
     }
 
     /**
+     * @throws \DrdPlus\CurrentProperties\Exceptions\CanNotUseArmamentBecauseOfMissingStrength
+     * @throws \DrdPlus\CurrentProperties\Exceptions\UnknownWeaponHolding
+     */
+    private function guardWeaponlikeWearable()
+    {
+        $this->guardWeaponOrShieldWearable($this->weaponlike, $this->getStrengthForWeaponlike());
+    }
+
+    /**
+     * @throws \DrdPlus\CurrentProperties\Exceptions\CanNotUseArmamentBecauseOfMissingStrength
+     * @throws \DrdPlus\CurrentProperties\Exceptions\UnknownWeaponHolding
+     * @throws \DrdPlus\CurrentProperties\Exceptions\NoHandLeftForShield
+     */
+    private function guardShieldWearable()
+    {
+        $this->guardWeaponOrShieldWearable($this->shield, $this->getStrengthForShield());
+    }
+
+    /**
      * @param WeaponlikeCode $weaponlikeCode
      * @param Strength $currentStrengthForWeapon
-     * @throws Exceptions\CanNotUseArmamentBecauseOfMissingStrength
+     * @throws \DrdPlus\CurrentProperties\Exceptions\CanNotUseArmamentBecauseOfMissingStrength
      */
     private function guardWeaponOrShieldWearable(WeaponlikeCode $weaponlikeCode, Strength $currentStrengthForWeapon)
     {
@@ -189,24 +208,24 @@ class FightProperties extends StrictObject
      */
     private function getStrengthForWeaponOrShield(WeaponlikeCode $weaponOrShield, ItemHoldingCode $holding)
     {
-        switch ($holding->getValue()) {
-            case ItemHoldingCode::TWO_HANDS :
-                /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-                if ($this->tables->getArmourer()->isTwoHandedOnly($weaponOrShield)) {
-                    // it is both-hands only weapon, can NOT count +2 bonus
-                    return $this->currentProperties->getStrengthForMainHandOnly();
-                }
-                // if one-handed is kept by both hands, the required strength is lower (fighter strength is higher respectively)
-                /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-                return $this->currentProperties->getStrengthForMainHandOnly()->add(2);
-            case ItemHoldingCode::MAIN_HAND :
+        if ($holding->holdsByTwoHands()) {
+            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+            if ($this->tables->getArmourer()->isTwoHandedOnly($weaponOrShield)) {
+                // it is both-hands only weapon, can NOT count +2 bonus
                 return $this->currentProperties->getStrengthForMainHandOnly();
-            case ItemHoldingCode::OFFHAND :
-                // Your less-dominant hand is weaker - try it.
-                return $this->currentProperties->getStrengthForOffhandOnly();
-            default :
-                throw new Exceptions\UnknownWeaponHolding('Do not know how to use weapon when holding like ' . $holding);
+            }
+            // if one-handed is kept by both hands, the required strength is lower (fighter strength is higher respectively)
+            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+            return $this->currentProperties->getStrengthForMainHandOnly()->add(2);
         }
+        if ($holding->holdsByMainHand()) {
+            return $this->currentProperties->getStrengthForMainHandOnly();
+        }
+        if ($holding->holdsByOffhand()) {
+            // your less-dominant hand is weaker (try it)
+            return $this->currentProperties->getStrengthForOffhandOnly();
+        }
+        throw new Exceptions\UnknownWeaponHolding('Do not know how to use weapon when holding like ' . $holding);
     }
 
     /**
@@ -216,31 +235,32 @@ class FightProperties extends StrictObject
      */
     private function getStrengthForShield()
     {
-        return $this->getStrengthForWeaponOrShield($this->shield, $this->getShieldHolding($this->weaponlikeHolding));
+        return $this->getStrengthForWeaponOrShield($this->shield, $this->getShieldHolding());
     }
 
     /**
      * Gives holding opposite to given weapon holding.
      *
-     * @param ItemHoldingCode $weaponlikeHolding
      * @return ItemHoldingCode
      * @throws \DrdPlus\CurrentProperties\Exceptions\NoHandLeftForShield
      * @throws \DrdPlus\CurrentProperties\Exceptions\UnknownWeaponHolding
      */
-    private function getShieldHolding(ItemHoldingCode $weaponlikeHolding)
+    private function getShieldHolding()
     {
-        if ($weaponlikeHolding->holdsByMainHand()) {
+        if ($this->weaponlikeHolding->holdsByMainHand()) {
             return ItemHoldingCode::getIt(ItemHoldingCode::OFFHAND);
         }
-        if ($weaponlikeHolding->holdsByOffhand()) {
+        if ($this->weaponlikeHolding->holdsByOffhand()) {
             return ItemHoldingCode::getIt(ItemHoldingCode::MAIN_HAND);
         }
-        if ($weaponlikeHolding->holdsByTwoHands()) {
+        if ($this->weaponlikeHolding->holdsByTwoHands()) {
             throw new Exceptions\NoHandLeftForShield(
-                "Can not give holding to a shield when holding {$weaponlikeHolding} like {$weaponlikeHolding}"
+                "Can not give holding to a shield when holding {$this->weaponlike} like {$this->weaponlikeHolding}"
             );
         }
-        throw new Exceptions\UnknownWeaponHolding('Do not know how to use weapon when holding like ' . $weaponlikeHolding);
+        throw new Exceptions\UnknownWeaponHolding(
+            "Do not know how to use {$this->shield} when holding {$this->weaponlike} like {$this->weaponlikeHolding}"
+        );
     }
 
     /**
@@ -293,12 +313,12 @@ class FightProperties extends StrictObject
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
         $fightNumberMalus = $this->tables->getArmourer()->getFightNumberMalusByStrengthWithWeaponOrShield(
             $this->weaponlike,
-            $this->getStrengthForWeaponOrShield($this->weaponlike, $this->weaponlikeHolding)
+            $this->getStrengthForWeaponlike()
         );
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
         $fightNumberMalus += $this->tables->getArmourer()->getFightNumberMalusByStrengthWithWeaponOrShield(
             $this->shield,
-            $this->getStrengthForWeaponOrShield($this->weaponlike, $this->getShieldHolding($this->weaponlikeHolding))
+            $this->getStrengthForShield()
         );
 
         return $fightNumberMalus;
@@ -422,7 +442,7 @@ class FightProperties extends StrictObject
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
         $attackNumberModifier += $armourer->getAttackNumberMalusByStrengthWithWeaponlike(
             $this->weaponlike,
-            $this->getStrengthForWeaponOrShield($this->weaponlike, $this->weaponlikeHolding)
+            $this->getStrengthForWeaponlike()
         );
 
         // skills effect
@@ -471,7 +491,7 @@ class FightProperties extends StrictObject
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
         $baseOfWoundsModifier += $this->tables->getArmourer()->getBaseOfWoundsUsingWeaponlike(
             $this->weaponlike,
-            $this->getStrengthForWeaponOrShield($this->weaponlike, $this->weaponlikeHolding)
+            $this->getStrengthForWeaponlike()
         );
 
         // skill effect
@@ -511,7 +531,7 @@ class FightProperties extends StrictObject
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
             $loadingInRoundsValue = $this->tables->getArmourer()->getLoadingInRoundsByStrengthWithRangedWeapon(
                 $this->weaponlike,
-                $this->getStrengthForWeaponOrShield($this->weaponlike, $this->weaponlikeHolding)
+                $this->getStrengthForWeaponlike()
             );
         }
 
@@ -533,7 +553,7 @@ class FightProperties extends StrictObject
         return new EncounterRange(
             $this->tables->getArmourer()->getEncounterRangeWithWeaponlike(
                 $this->weaponlike,
-                $this->getStrengthForWeaponOrShield($this->weaponlike, $this->weaponlikeHolding),
+                $this->getStrengthForWeaponlike(),
                 $this->currentProperties->getSpeed()
             )
         );
@@ -633,7 +653,7 @@ class FightProperties extends StrictObject
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
         $coverModifier += $this->tables->getArmourer()->getDefenseNumberMalusByStrengthWithWeaponOrShield(
             $this->weaponlike,
-            $this->getStrengthForWeaponOrShield($this->weaponlike, $this->weaponlikeHolding)
+            $this->getStrengthForWeaponlike()
         );
 
         // weapon or shield effect
@@ -685,7 +705,7 @@ class FightProperties extends StrictObject
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
         $coverModifier += $this->tables->getArmourer()->getDefenseNumberMalusByStrengthWithWeaponOrShield(
             $this->shield,
-            $this->getStrengthForWeaponOrShield($this->shield, $this->getShieldHolding($this->weaponlikeHolding))
+            $this->getStrengthForShield()
         );
 
         // weapon or shield effect
