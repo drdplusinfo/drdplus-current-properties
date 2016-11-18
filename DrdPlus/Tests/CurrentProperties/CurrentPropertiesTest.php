@@ -7,7 +7,6 @@ use DrdPlus\Codes\RaceCode;
 use DrdPlus\Codes\SubRaceCode;
 use DrdPlus\CurrentProperties\CurrentProperties;
 use DrdPlus\Health\Health;
-use DrdPlus\Professions\Profession;
 use DrdPlus\Properties\Base\Agility;
 use DrdPlus\Properties\Base\Charisma;
 use DrdPlus\Properties\Base\Knack;
@@ -66,7 +65,6 @@ class CurrentPropertiesTest extends TestWithMockery
         $currentProperties = new CurrentProperties(
             $propertiesByLevels,
             $health,
-            $this->createProfession(),
             $this->createRaceCode(),
             $this->createSubraceCode(),
             $bodyArmorCode,
@@ -102,14 +100,6 @@ class CurrentPropertiesTest extends TestWithMockery
     private function createHealth()
     {
         return $this->mockery(Health::class);
-    }
-
-    /**
-     * @return \Mockery\MockInterface|Profession
-     */
-    private function createProfession()
-    {
-        return $this->mockery(Profession::class);
     }
 
     /**

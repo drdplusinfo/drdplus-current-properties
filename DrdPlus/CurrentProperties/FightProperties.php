@@ -1,12 +1,15 @@
 <?php
 namespace DrdPlus\CurrentProperties;
 
+use DrdPlus\Codes\Armaments\BodyArmorCode;
+use DrdPlus\Codes\Armaments\HelmCode;
 use DrdPlus\Codes\Armaments\MeleeWeaponCode;
 use DrdPlus\Codes\Armaments\RangedWeaponCode;
 use DrdPlus\Codes\Armaments\ShieldCode;
 use DrdPlus\Codes\Armaments\WeaponCode;
 use DrdPlus\Codes\Armaments\WeaponlikeCode;
 use DrdPlus\Codes\ItemHoldingCode;
+use DrdPlus\Codes\ProfessionCode;
 use DrdPlus\Codes\WoundTypeCode;
 use DrdPlus\Properties\Base\Strength;
 use DrdPlus\Properties\Combat\Attack;
@@ -32,10 +35,18 @@ use Granam\Strict\Object\StrictObject;
 
 class FightProperties extends StrictObject
 {
+    use GuardArmamentWearableTrait;
+
     /** @var CurrentProperties */
     private $currentProperties;
     /** @var Skills */
     private $skills;
+    /** @var BodyArmorCode */
+    private $wornBodyArmor;
+    /** @var HelmCode */
+    private $wornHelm;
+    /** @var ProfessionCode */
+    private $professionCode;
     /** @var Tables */
     private $tables;
     /** @var ItemHoldingCode */
@@ -56,12 +67,15 @@ class FightProperties extends StrictObject
      * Use @see ShieldCode::WITHOUT_SHIELD for no shield.
      * Note about SHIELD and range attack - there is really confusing rule on PPH page 86 right column about AUTOMATIC
      * cover by shield even if you do not know about attack. So you are not using that shield at all, it just exists.
-     * So there is no malus by missing strength or skill. So you would have full cover with any shield...? Don't think
-     * so. So that rule is IGNORED here.
+     * So there is no malus by missing strength or skill. So you would have full cover with any shield...?
+     * Don't think so... so that rule is IGNORED here.
      *
      * @param CurrentProperties $currentProperties
      * @param CombatActions $combatActions
      * @param Skills $skills
+     * @param BodyArmorCode $wornBodyArmor
+     * @param HelmCode $wornHelm
+     * @param ProfessionCode $professionCode
      * @param Tables $tables
      * @param WeaponlikeCode $weaponlike
      * @param ItemHoldingCode $weaponlikeHolding
@@ -82,6 +96,9 @@ class FightProperties extends StrictObject
         CurrentProperties $currentProperties,
         CombatActions $combatActions,
         Skills $skills,
+        BodyArmorCode $wornBodyArmor,
+        HelmCode $wornHelm,
+        ProfessionCode $professionCode,
         Tables $tables,
         WeaponlikeCode $weaponlike,
         ItemHoldingCode $weaponlikeHolding,
@@ -92,6 +109,9 @@ class FightProperties extends StrictObject
     {
         $this->currentProperties = $currentProperties;
         $this->skills = $skills;
+        $this->wornBodyArmor = $wornBodyArmor;
+        $this->wornHelm = $wornHelm;
+        $this->professionCode = $professionCode;
         $this->tables = $tables;
         $this->weaponlike = $weaponlike;
         $this->weaponlikeHolding = $weaponlikeHolding;
@@ -99,10 +119,38 @@ class FightProperties extends StrictObject
         $this->combatActions = $combatActions;
         $this->shield = $shield;
         $this->enemyIsFasterThanYou = ToBoolean::toBoolean($enemyIsFasterThanYou);
+        $this->guardWornBodyArmorWearable();
+        $this->guardWornHelmWearable();
         $this->guardHoldingCompatibleWithWeaponlike();
         $this->guardCombatActionsCompatibleWithWeaponlike();
         $this->guardWeaponlikeWearable();
         $this->guardShieldWearable();
+    }
+
+    /**
+     * @throws Exceptions\CanNotUseArmamentBecauseOfMissingStrength
+     */
+    private function guardWornBodyArmorWearable()
+    {
+        $this->guardArmamentWearable(
+            $this->wornBodyArmor,
+            $this->currentProperties->getStrength(),
+            $this->currentProperties->getSize(),
+            $this->tables->getArmourer()
+        );
+    }
+
+    /**
+     * @throws Exceptions\CanNotUseArmamentBecauseOfMissingStrength
+     */
+    private function guardWornHelmWearable()
+    {
+        $this->guardArmamentWearable(
+            $this->wornHelm,
+            $this->currentProperties->getStrength(),
+            $this->currentProperties->getSize(),
+            $this->tables->getArmourer()
+        );
     }
 
     /**
@@ -272,7 +320,7 @@ class FightProperties extends StrictObject
     {
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
         $fightNumber = new FightNumber(
-            $this->currentProperties->getProfession()->getCode(),
+            $this->professionCode,
             $this->currentProperties,
             $this->currentProperties->getHeight()
         );
@@ -340,15 +388,17 @@ class FightProperties extends StrictObject
      */
     private function getFightNumberMalusFromProtectivesBySkills()
     {
+        $fightNumberMalus = 0;
+
         // armor and helm
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        $fightNumberMalus = $this->skills->getMalusToFightNumberWithProtective(
-            $this->currentProperties->getWornBodyArmor(),
+        $fightNumberMalus += $this->skills->getMalusToFightNumberWithProtective(
+            $this->wornBodyArmor,
             $this->tables->getArmourer()
         );
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
         $fightNumberMalus += $this->skills->getMalusToFightNumberWithProtective(
-            $this->currentProperties->getWornHelm(),
+            $this->wornHelm,
             $this->tables->getArmourer()
         );
 
@@ -358,7 +408,8 @@ class FightProperties extends StrictObject
             $this->shield,
             $this->tables->getArmourer()
         );
-        if ($this->weaponlike->isShield()) { // EVEN IF you use the shield in main hand as a weapon...
+        // rare situation when you have two shields and uses one as a weapon or just a shield both as a shield and a weapon
+        if ($this->weaponlike->isShield()) {
             /** @var ShieldCode $shieldAsWeapon */
             $shieldAsWeapon = $this->weaponlike;
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
@@ -391,6 +442,7 @@ class FightProperties extends StrictObject
     {
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
         $lengths[] = $this->tables->getArmourer()->getLengthOfWeaponOrShield($this->weaponlike);
+        // shields have length 0, but who knows...
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
         $lengths[] = $this->tables->getArmourer()->getLengthOfWeaponOrShield($this->shield);
 

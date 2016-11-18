@@ -1,13 +1,11 @@
 <?php
 namespace DrdPlus\CurrentProperties;
 
-use DrdPlus\Codes\Armaments\ArmamentCode;
 use DrdPlus\Codes\Armaments\BodyArmorCode;
 use DrdPlus\Codes\Armaments\HelmCode;
 use DrdPlus\Codes\RaceCode;
 use DrdPlus\Codes\SubRaceCode;
 use DrdPlus\Health\Health;
-use DrdPlus\Professions\Profession;
 use DrdPlus\Properties\Base\Agility;
 use DrdPlus\Properties\Base\Charisma;
 use DrdPlus\Properties\Base\Intelligence;
@@ -25,7 +23,7 @@ use DrdPlus\Properties\Derived\Dangerousness;
 use DrdPlus\Properties\Derived\Dignity;
 use DrdPlus\Properties\Derived\Endurance;
 use DrdPlus\Properties\Derived\FatigueBoundary;
-use DrdPlus\Properties\Derived\Parts\AbstractDerivedProperty;
+use DrdPlus\Properties\Derived\Partials\AbstractDerivedProperty;
 use DrdPlus\Properties\Derived\Senses;
 use DrdPlus\Properties\Derived\Speed;
 use DrdPlus\Properties\Derived\Toughness;
@@ -37,6 +35,8 @@ use Granam\Strict\Object\StrictObject;
 
 class CurrentProperties extends StrictObject implements BasePropertiesInterface
 {
+    use GuardArmamentWearableTrait;
+
     /** @var PropertiesByLevels */
     private $propertiesByLevels;
     /** @var Health */
@@ -49,8 +49,6 @@ class CurrentProperties extends StrictObject implements BasePropertiesInterface
     private $wornBodyArmor;
     /** @var HelmCode */
     private $wornHelm;
-    /** @var Profession */
-    private $profession;
     /** @var CargoWeight */
     private $cargoWeight;
     /** @var Tables */
@@ -91,7 +89,6 @@ class CurrentProperties extends StrictObject implements BasePropertiesInterface
      *
      * @param PropertiesByLevels $propertiesByLevels
      * @param Health $health
-     * @param Profession $profession
      * @param RaceCode $raceCode
      * @param SubRaceCode $subRaceCode
      * @param BodyArmorCode $wornBodyArmor for no armor use \DrdPlus\Codes\Armaments\BodyArmorCode::WITHOUT_ARMOR
@@ -103,7 +100,6 @@ class CurrentProperties extends StrictObject implements BasePropertiesInterface
     public function __construct(
         PropertiesByLevels $propertiesByLevels,
         Health $health,
-        Profession $profession,
         RaceCode $raceCode,
         SubRaceCode $subRaceCode,
         BodyArmorCode $wornBodyArmor,
@@ -113,54 +109,15 @@ class CurrentProperties extends StrictObject implements BasePropertiesInterface
     )
     {
         $this->propertiesByLevels = $propertiesByLevels;
-        $this->profession = $profession;
         $this->health = $health;
         $this->raceCode = $raceCode;
         $this->subRaceCode = $subRaceCode;
         $this->cargoWeight = $cargoWeight;
         $this->tables = $tables;
-        $this->guardArmamentWearable($wornBodyArmor);
+        $this->guardArmamentWearable($wornBodyArmor, $this->getStrength(), $this->getSize(), $tables->getArmourer());
         $this->wornBodyArmor = $wornBodyArmor;
-        $this->guardArmamentWearable($wornHelm);
+        $this->guardArmamentWearable($wornHelm, $this->getStrength(), $this->getSize(), $tables->getArmourer());
         $this->wornHelm = $wornHelm;
-    }
-
-    /**
-     * @param ArmamentCode $armamentCode
-     * @throws Exceptions\CanNotUseArmamentBecauseOfMissingStrength
-     */
-    private function guardArmamentWearable(ArmamentCode $armamentCode)
-    {
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        if (!$this->tables->getArmourer()->canUseArmament($armamentCode, $this->getStrength(), $this->getSize())) {
-            throw new Exceptions\CanNotUseArmamentBecauseOfMissingStrength(
-                "'{$armamentCode}' is too heavy to be used by with strength {$this->getStrength()}"
-            );
-        }
-    }
-
-    /**
-     * @return BodyArmorCode
-     */
-    public function getWornBodyArmor()
-    {
-        return $this->wornBodyArmor;
-    }
-
-    /**
-     * @return HelmCode
-     */
-    public function getWornHelm()
-    {
-        return $this->wornHelm;
-    }
-
-    /**
-     * @return Profession
-     */
-    public function getProfession()
-    {
-        return $this->profession;
     }
 
     /**
