@@ -17,7 +17,11 @@ use DrdPlus\Properties\Body\Age;
 use DrdPlus\Properties\Body\Height;
 use DrdPlus\Properties\Body\HeightInCm;
 use DrdPlus\Properties\Body\Size;
+use DrdPlus\Properties\Body\WeightInKg;
 use DrdPlus\Properties\Derived\Beauty;
+use DrdPlus\Properties\Derived\Endurance;
+use DrdPlus\Properties\Derived\Speed;
+use DrdPlus\Properties\Derived\Toughness;
 use DrdPlus\PropertiesByLevels\PropertiesByLevels;
 use DrdPlus\Tables\Armaments\Armourer;
 use DrdPlus\Tables\Measurements\Weight\Weight;
@@ -43,33 +47,24 @@ class CurrentPropertiesTest extends TestWithMockery
             ->with($strengthMalusFromAfflictions)
             ->andReturn($strengthWithoutMalusFromLoad = $this->mockery(Strength::class));
         $tables = $this->createTables();
-        $tables->shouldReceive('getWeightTable')
-            ->andReturn($weightTable = $this->mockery(WeightTable::class));
+        $tables->shouldReceive('getWeightTable')->andReturn($weightTable = $this->mockery(WeightTable::class));
         $cargoWeight = $this->createCargoWeight();
         $weightTable->shouldReceive('getMalusFromLoad')
             ->with($strengthWithoutMalusFromLoad, $cargoWeight)
             ->andReturn($malusFromLoad = 112233);
         $strengthWithoutMalusFromLoad->shouldReceive('add')
             ->with($malusFromLoad)
-            ->andReturn($strength = $this->mockery(Strength::class));
-        $strength->shouldReceive('sub')
-            ->with(2)
-            ->andReturn($strengthForOffhand = $this->mockery(Strength::class));
+            ->andReturn($strength = $this->createStrength(2233441));
+        $strength->shouldReceive('sub')->with(2)->andReturn($strengthForOffhand = $this->mockery(Strength::class));
 
         // agility
         $propertiesByLevels->shouldReceive('getAgility')->andReturn($agilityWithoutMaluses = $this->mockery(Agility::class));
         $bodyArmorCode = $this->createBodyArmorCode();
         $helmCode = $this->createHelmCode();
-        $tables->shouldReceive('getArmourer')
-            ->andReturn($armourer = $this->mockery(Armourer::class));
-        $propertiesByLevels->shouldReceive('getSize')
-            ->andReturn($size = $this->mockery(Size::class));
-        $armourer->shouldReceive('canUseArmament')
-            ->with($bodyArmorCode, $strength, $size)
-            ->andReturn(true);
-        $armourer->shouldReceive('canUseArmament')
-            ->with($helmCode, $strength, $size)
-            ->andReturn(true);
+        $tables->shouldReceive('getArmourer')->andReturn($armourer = $this->mockery(Armourer::class));
+        $size = $this->mockery(Size::class);
+        $armourer->shouldReceive('canUseArmament')->with($bodyArmorCode, $strength, $size)->andReturn(true);
+        $armourer->shouldReceive('canUseArmament')->with($helmCode, $strength, $size)->andReturn(true);
         $armourer->shouldReceive('getAgilityMalusByStrengthWithArmor')
             ->with($bodyArmorCode, $strength, $size)
             ->andReturn(123);
@@ -83,6 +78,7 @@ class CurrentPropertiesTest extends TestWithMockery
         $propertiesByLevels->shouldReceive('getKnack')->andReturn($baseKnack = Knack::getIt(667788));
         $health->shouldReceive('getKnackMalusFromAfflictions')
             ->andReturn($knackMalusFromAfflictions = -3344);
+        $expectedKnack = $baseKnack->add($knackMalusFromAfflictions)->add($malusFromLoad);
 
         // will
         $propertiesByLevels->shouldReceive('getWill')->andReturn($baseWill = Will::getIt(88965));
@@ -99,9 +95,13 @@ class CurrentPropertiesTest extends TestWithMockery
         $health->shouldReceive('getCharismaMalusFromAfflictions')
             ->andReturn($charismaMalusFromAfflictions = -6666674);
 
-        $propertiesByLevels->shouldReceive('getAge')->andReturn($age = $this->mockery(Age::class));
+        $propertiesByLevels->shouldReceive('getWeightInKg')->andReturn($weightInKg = $this->mockery(WeightInKg::class));
         $propertiesByLevels->shouldReceive('getHeightInCm')->andReturn($heightInCm = $this->mockery(HeightInCm::class));
         $propertiesByLevels->shouldReceive('getHeight')->andReturn($height = $this->createHeight(123789));
+        $propertiesByLevels->shouldReceive('getAge')->andReturn($age = $this->mockery(Age::class));
+        $propertiesByLevels->shouldReceive('getToughness')->andReturn($toughness = $this->mockery(Toughness::class));
+        $propertiesByLevels->shouldReceive('getEndurance')->andReturn($endurance = $this->mockery(Endurance::class));
+        $propertiesByLevels->shouldReceive('getSize')->andReturn($size);
 
         $currentProperties = new CurrentProperties(
             $propertiesByLevels,
@@ -120,41 +120,43 @@ class CurrentPropertiesTest extends TestWithMockery
             $strength,
             $strengthForOffhand,
             $agility,
-            $baseKnack,
-            $knackMalusFromAfflictions,
+            $expectedKnack,
             $baseWill,
             $willMalusFromAfflictions,
             $baseIntelligence,
             $intelligenceMalusFromAfflictions,
             $baseCharisma,
             $charismaMalusFromAfflictions,
+            $weightInKg,
             $heightInCm,
             $height,
-            $size,
             $age,
-            $malusFromLoad
+            $toughness,
+            $endurance,
+            $size
         );
     }
 
     /**
      * @param CurrentProperties $currentProperties
-     * @param Strength|\Mockery\MockInterface $baseStrength
-     * @param Strength|\Mockery\MockInterface $strength
-     * @param Strength|\Mockery\MockInterface $strengthForOffhand
+     * @param Strength $baseStrength
+     * @param Strength $strength
+     * @param Strength $strengthForOffhand
      * @param Agility $agility
-     * @param Knack $baseKnack
-     * @param int $knackMalusFromAfflictions
+     * @param Knack $expectedKnack
      * @param Will $baseWill
      * @param int $willMalusFromAfflictions
      * @param Intelligence $baseIntelligence
      * @param int $intelligenceMalusFromAfflictions
      * @param Charisma $baseCharisma
      * @param int $charismaMalusFromAfflictions
+     * @param WeightInKg $weightInKg
      * @param HeightInCm $heightInCm
      * @param Height $height
-     * @param Size|\Mockery\MockInterface $size
-     * @param Age|\Mockery\MockInterface $age
-     * @param int $malusFromLoad
+     * @param Size $size
+     * @param Age $age
+     * @param Toughness $toughness
+     * @param Endurance $endurance
      */
     private function I_can_get_current_properties(
         CurrentProperties $currentProperties,
@@ -162,19 +164,20 @@ class CurrentPropertiesTest extends TestWithMockery
         Strength $strength,
         Strength $strengthForOffhand,
         Agility $agility,
-        Knack $baseKnack,
-        $knackMalusFromAfflictions,
+        Knack $expectedKnack,
         Will $baseWill,
         $willMalusFromAfflictions,
         Intelligence $baseIntelligence,
         $intelligenceMalusFromAfflictions,
         Charisma $baseCharisma,
         $charismaMalusFromAfflictions,
+        WeightInKg $weightInKg,
         HeightInCm $heightInCm,
         Height $height,
-        Size $size,
         Age $age,
-        $malusFromLoad
+        Toughness $toughness,
+        Endurance $endurance,
+        Size $size
     )
     {
         // base properties
@@ -184,7 +187,7 @@ class CurrentPropertiesTest extends TestWithMockery
         self::assertSame($strengthForOffhand, $currentProperties->getStrengthForOffhandOnly());
         self::assertSame($agility, $currentProperties->getAgility());
         self::assertInstanceOf(Knack::class, $currentProperties->getKnack());
-        self::assertSame($baseKnack->getValue() + $knackMalusFromAfflictions + $malusFromLoad, $currentProperties->getKnack()->getValue());
+        self::assertSame($expectedKnack->getValue(), $currentProperties->getKnack()->getValue());
         self::assertInstanceOf(Will::class, $currentProperties->getWill());
         self::assertSame($baseWill->getValue() + $willMalusFromAfflictions, $currentProperties->getWill()->getValue());
         self::assertInstanceOf(Intelligence::class, $currentProperties->getIntelligence());
@@ -192,22 +195,41 @@ class CurrentPropertiesTest extends TestWithMockery
         self::assertInstanceOf(Charisma::class, $currentProperties->getCharisma());
         self::assertSame($baseCharisma->getValue() + $charismaMalusFromAfflictions, $currentProperties->getCharisma()->getValue());
 
+        self::assertSame($weightInKg, $currentProperties->getWeightInKg());
+        self::assertSame($heightInCm, $currentProperties->getHeightInCm());
+        self::assertSame($height, $currentProperties->getHeight());
+        self::assertSame($age, $currentProperties->getAge());
+        self::assertSame($toughness, $currentProperties->getToughness());
+        self::assertSame($endurance, $currentProperties->getEndurance());
+        self::assertSame($size, $currentProperties->getSize());
+
+        $expectedSpeed = new Speed($strength, $agility, $height);
+        self::assertInstanceOf(Speed::class, $currentProperties->getSpeed());
+        self::assertSame($expectedSpeed->getValue(), $currentProperties->getSpeed()->getValue());
+
         $expectedBeauty = new Beauty($agility, $currentProperties->getKnack(), $currentProperties->getCharisma());
         self::assertInstanceOf(Beauty::class, $currentProperties->getBeauty());
         self::assertSame($expectedBeauty->getValue(), $currentProperties->getBeauty()->getValue());
+    }
 
-        self::assertSame($size, $currentProperties->getSize());
-        self::assertSame($age, $currentProperties->getAge());
-        self::assertSame($heightInCm, $currentProperties->getHeightInCm());
-        self::assertSame($height, $currentProperties->getHeight());
+    /**
+     * @param $value
+     * @return \Mockery\MockInterface|Strength
+     */
+    private function createStrength($value)
+    {
+        $strength = $this->mockery(Strength::class);
+        $strength->shouldReceive('getValue')
+            ->andReturn($value);
+
+        return $strength;
     }
 
     /**
      * @param $value
      * @return \Mockery\MockInterface|Agility
      */
-    private
-    function createAgility($value)
+    private function createAgility($value)
     {
         $agility = $this->mockery(Agility::class);
         $agility->shouldReceive('getValue')
@@ -220,8 +242,7 @@ class CurrentPropertiesTest extends TestWithMockery
      * @param $value
      * @return \Mockery\MockInterface|Height
      */
-    private
-    function createHeight($value)
+    private function createHeight($value)
     {
         $height = $this->mockery(Height::class);
         $height->shouldReceive('getValue')
@@ -233,8 +254,7 @@ class CurrentPropertiesTest extends TestWithMockery
     /**
      * @return \Mockery\MockInterface|PropertiesByLevels
      */
-    private
-    function createPropertiesByLevels()
+    private function createPropertiesByLevels()
     {
         return $this->mockery(PropertiesByLevels::class);
     }
@@ -242,8 +262,7 @@ class CurrentPropertiesTest extends TestWithMockery
     /**
      * @return \Mockery\MockInterface|Health
      */
-    private
-    function createHealth()
+    private function createHealth()
     {
         return $this->mockery(Health::class);
     }
@@ -251,8 +270,7 @@ class CurrentPropertiesTest extends TestWithMockery
     /**
      * @return \Mockery\MockInterface|RaceCode
      */
-    private
-    function createRaceCode()
+    private function createRaceCode()
     {
         return $this->mockery(RaceCode::class);
     }
@@ -260,8 +278,7 @@ class CurrentPropertiesTest extends TestWithMockery
     /**
      * @return \Mockery\MockInterface|SubRaceCode
      */
-    private
-    function createSubraceCode()
+    private function createSubraceCode()
     {
         return $this->mockery(SubRaceCode::class);
     }
@@ -269,8 +286,7 @@ class CurrentPropertiesTest extends TestWithMockery
     /**
      * @return \Mockery\MockInterface|BodyArmorCode
      */
-    private
-    function createBodyArmorCode()
+    private function createBodyArmorCode()
     {
         return $this->mockery(BodyArmorCode::class);
     }
@@ -278,8 +294,7 @@ class CurrentPropertiesTest extends TestWithMockery
     /**
      * @return \Mockery\MockInterface|HelmCode
      */
-    private
-    function createHelmCode()
+    private function createHelmCode()
     {
         return $this->mockery(HelmCode::class);
     }
@@ -287,8 +302,7 @@ class CurrentPropertiesTest extends TestWithMockery
     /**
      * @return \Mockery\MockInterface|Weight
      */
-    private
-    function createCargoWeight()
+    private function createCargoWeight()
     {
         return $this->mockery(Weight::class);
     }
@@ -296,8 +310,7 @@ class CurrentPropertiesTest extends TestWithMockery
     /**
      * @return \Mockery\MockInterface|Tables
      */
-    private
-    function createTables()
+    private function createTables()
     {
         return $this->mockery(Tables::class);
     }
