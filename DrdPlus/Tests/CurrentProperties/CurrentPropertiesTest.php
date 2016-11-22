@@ -52,6 +52,9 @@ class CurrentPropertiesTest extends TestWithMockery
         $strengthWithoutMalusFromLoad->shouldReceive('add')
             ->with($malusFromLoad)
             ->andReturn($strength = $this->mockery(Strength::class));
+        $strength->shouldReceive('sub')
+            ->with(2)
+            ->andReturn($strengthForOffhand = $this->mockery(Strength::class));
 
         $tables->shouldReceive('getArmourer')
             ->andReturn($armourer = $this->mockery(Armourer::class));
@@ -79,7 +82,9 @@ class CurrentPropertiesTest extends TestWithMockery
             $armourer,
             $bodyArmorCode,
             $helmCode,
+            $baseStrength,
             $strength,
+            $strengthForOffhand,
             $size,
             $health,
             $malusFromLoad
@@ -156,7 +161,9 @@ class CurrentPropertiesTest extends TestWithMockery
      * @param Armourer|\Mockery\MockInterface $armourer
      * @param BodyArmorCode|\Mockery\MockInterface $bodyArmorCode
      * @param HelmCode|\Mockery\MockInterface $helmCode
+     * @param Strength|\Mockery\MockInterface $baseStrength
      * @param Strength|\Mockery\MockInterface $strength
+     * @param Strength|\Mockery\MockInterface $strengthForOffhand
      * @param Size|\Mockery\MockInterface $size
      * @param Health|\Mockery\MockInterface $health
      * @param int $malusFromLoad
@@ -167,7 +174,9 @@ class CurrentPropertiesTest extends TestWithMockery
         Armourer $armourer,
         BodyArmorCode $bodyArmorCode,
         HelmCode $helmCode,
+        Strength $baseStrength,
         Strength $strength,
+        Strength $strengthForOffhand,
         Size $size,
         Health $health,
         $malusFromLoad
@@ -192,6 +201,11 @@ class CurrentPropertiesTest extends TestWithMockery
 
         $propertiesByLevels->shouldReceive('getHeight')->andReturn($height = $this->createHeight(123789));
         self::assertSame($height, $currentProperties->getHeight());
+
+        self::assertSame($baseStrength, $currentProperties->getBodyStrength());
+        self::assertSame($strength, $currentProperties->getStrength());
+        self::assertSame($strength, $currentProperties->getStrengthForMainHandOnly());
+        self::assertSame($strengthForOffhand, $currentProperties->getStrengthForOffhandOnly());
 
         $propertiesByLevels->shouldReceive('getKnack')->andReturn($baseKnack = Knack::getIt(667788));
         $health->shouldReceive('getKnackMalusFromAfflictions')

@@ -133,7 +133,6 @@ class CurrentProperties extends StrictObject implements BaseProperties
     {
         if ($this->strength === null) {
             $strengthWithoutMalusFromLoad = $this->getStrengthWithoutMalusFromLoad();
-
             // malus from missing strength is applied just once, even if it lowers the strength itself
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
             $this->strength = $strengthWithoutMalusFromLoad->add(
@@ -184,7 +183,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
     {
         if ($this->strengthForOffhandOnly === null) {
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-            $this->strengthForOffhandOnly = $this->getStrength()->sub(-2); // offhand has a malus to strength (try to carry you purchase in offhand sometimes...)
+            $this->strengthForOffhandOnly = $this->getStrength()->sub(2); // offhand has a malus to strength (try to carry you purchase in offhand sometimes...)
         }
 
         return $this->strengthForOffhandOnly;
