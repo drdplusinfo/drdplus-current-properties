@@ -17,7 +17,7 @@ use DrdPlus\Properties\Body\Height;
 use DrdPlus\Properties\Body\HeightInCm;
 use DrdPlus\Properties\Body\Size;
 use DrdPlus\Properties\Body\WeightInKg;
-use DrdPlus\Properties\Combat\BasePropertiesInterface;
+use DrdPlus\Properties\Combat\BaseProperties;
 use DrdPlus\Properties\Derived\Beauty;
 use DrdPlus\Properties\Derived\Dangerousness;
 use DrdPlus\Properties\Derived\Dignity;
@@ -33,7 +33,7 @@ use DrdPlus\Tables\Measurements\Weight\Weight as CargoWeight;
 use DrdPlus\Tables\Tables;
 use Granam\Strict\Object\StrictObject;
 
-class CurrentProperties extends StrictObject implements BasePropertiesInterface
+class CurrentProperties extends StrictObject implements BaseProperties
 {
     use GuardArmamentWearableTrait;
 

@@ -206,8 +206,9 @@ class CurrentPropertiesTest extends TestWithMockery
         self::assertInstanceOf(Charisma::class, $currentProperties->getCharisma());
         $expectedCharisma = Charisma::getIt($baseCharisma->getValue() + $charismaMalusFromAfflictions);
         self::assertSame($expectedCharisma->getValue(), $currentProperties->getCharisma()->getValue());
-
-        self::assertEquals(new Beauty($agility, $expectedKnack, $expectedCharisma), $currentProperties->getBeauty());
+        $expectedBeauty = new Beauty($agility, $expectedKnack, $expectedCharisma);
+        self::assertInstanceOf(Beauty::class, $currentProperties->getBeauty());
+        self::assertSame($expectedBeauty->getValue(), $currentProperties->getBeauty()->getValue());
     }
 
     /**
