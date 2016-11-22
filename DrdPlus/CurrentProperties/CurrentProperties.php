@@ -238,13 +238,12 @@ class CurrentProperties extends StrictObject implements BaseProperties
     {
         if ($this->knack === null) {
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-            $this->knack = $this->propertiesByLevels->getKnack()->add(
-                $this->health->getKnackMalusFromAfflictions()
-                + $this->tables->getWeightTable()->getMalusFromLoad(
+            $this->knack = $this->propertiesByLevels->getKnack()
+                ->add($this->health->getKnackMalusFromAfflictions())
+                ->add($this->tables->getWeightTable()->getMalusFromLoad(
                     $this->getStrengthWithoutMalusFromLoad(),
                     $this->cargoWeight
-                )
-            );
+                ));
         }
 
         return $this->knack;
