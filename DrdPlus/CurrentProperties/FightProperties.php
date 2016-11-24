@@ -84,7 +84,6 @@ class FightProperties extends StrictObject
      * @param bool $enemyIsFasterThanYou
      * @throws \DrdPlus\CurrentProperties\Exceptions\CanNotHoldItByTwoHands
      * @throws \DrdPlus\CurrentProperties\Exceptions\CanNotHoldItByOneHand
-     * @throws \DrdPlus\CurrentProperties\Exceptions\InvalidCombatActionFormat
      * @throws \DrdPlus\CurrentProperties\Exceptions\IncompatibleCombatActions
      * @throws \DrdPlus\CurrentProperties\Exceptions\CanNotUseArmamentBecauseOfMissingStrength
      * @throws \DrdPlus\CurrentProperties\Exceptions\ImpossibleActionsWithCurrentWeaponlike
