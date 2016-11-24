@@ -23,9 +23,8 @@ class CombatActions extends StrictObject implements \IteratorAggregate, \Countab
      * @param array|string[]|CombatActionCode[] $combatActionCodes
      * @param CombatActionsCompatibilityTable $combatActionsCompatibilityTable
      * @param int $finishedRoundsOfAiming zero is for shooting without aim and disrupted aim
-     * @throws \DrdPlus\CurrentProperties\Exceptions\InvalidCombatActionFormat
      * @throws \DrdPlus\CurrentProperties\Exceptions\IncompatibleCombatActions
-     * @throws \DrdPlus\CurrentProperties\Exceptions\InvalidRoundsOfAiming
+     * @throws \DrdPlus\CurrentProperties\Exceptions\InvalidFormatOfRoundsOfAiming
      * @throws \DrdPlus\CurrentProperties\Exceptions\UnknownCombatActionCode
      */
     public function __construct(
@@ -44,7 +43,7 @@ class CombatActions extends StrictObject implements \IteratorAggregate, \Countab
     }
 
     /**
-     * @param array $combatActionCodes
+     * @param array|string[]|CombatActionCode[] $combatActionCodes
      * @return array|CombatActionCode[]
      * @throws \DrdPlus\CurrentProperties\Exceptions\UnknownCombatActionCode
      */
@@ -71,7 +70,6 @@ class CombatActions extends StrictObject implements \IteratorAggregate, \Countab
     /**
      * @param array|CombatActionCode[] $combatActionCodes
      * @param CombatActionsCompatibilityTable $combatActionsCompatibilityTable
-     * @throws \DrdPlus\CurrentProperties\Exceptions\InvalidCombatActionFormat
      * @throws \DrdPlus\CurrentProperties\Exceptions\IncompatibleCombatActions
      */
     private function validateActionCodesCoWork(
@@ -85,7 +83,6 @@ class CombatActions extends StrictObject implements \IteratorAggregate, \Countab
 
     /**
      * @param array|CombatActionCode[] $combatActionCodes
-     * @throws \DrdPlus\CurrentProperties\Exceptions\InvalidCombatActionFormat
      * @throws \DrdPlus\CurrentProperties\Exceptions\IncompatibleCombatActions
      */
     private function guardUsableForSameAttackTypes(array $combatActionCodes)
@@ -93,11 +90,6 @@ class CombatActions extends StrictObject implements \IteratorAggregate, \Countab
         $forMeleeOnly = [];
         $forRangedOnly = [];
         foreach ($combatActionCodes as $combatActionCode) {
-            if (!($combatActionCode instanceof CombatActionCode)) {
-                throw new Exceptions\InvalidCombatActionFormat(
-                    'Expected ' . CombatActionCode::class . ', got ' . ValueDescriber::describe($combatActionCode)
-                );
-            }
             if ($combatActionCode->isForMelee() && !$combatActionCode->isForRanged()) {
                 $forMeleeOnly[] = $combatActionCode;
             }
@@ -123,27 +115,30 @@ class CombatActions extends StrictObject implements \IteratorAggregate, \Countab
         CombatActionsCompatibilityTable $combatActionsCompatibilityTable
     )
     {
-        $incompatible = [];
+        $incompatiblePairs = [];
+        $anotherCombatActionCodes = $combatActionCodes;
         foreach ($combatActionCodes as $combatActionCode) {
-            foreach ($combatActionCodes as $anotherCombatActionCode) {
+            /** @noinspection DisconnectedForeachInstructionInspection */
+            array_shift($anotherCombatActionCodes); // remove an item from beginning
+            foreach ($anotherCombatActionCodes as $anotherCombatActionCode) {
                 /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
                 if ($combatActionCode !== $anotherCombatActionCode
                     && !$combatActionsCompatibilityTable->canCombineTwoActions($combatActionCode, $anotherCombatActionCode)
                 ) {
-                    $incompatible[] = [$combatActionCode, $anotherCombatActionCode];
+                    $incompatiblePairs[] = [$combatActionCode, $anotherCombatActionCode];
                 }
             }
         }
-        if ($incompatible) {
+        if ($incompatiblePairs) {
             throw new Exceptions\IncompatibleCombatActions(
                 'There are incompatible combat actions: '
                 . implode(
                     ', ',
                     array_map(
                         function (array $incompatiblePair) {
-                            return $incompatiblePair[1] . ' with ' . $incompatiblePair[1];
+                            return $incompatiblePair[0] . ' with ' . $incompatiblePair[1];
                         },
-                        $incompatible
+                        $incompatiblePairs
                     )
                 )
             );
@@ -155,7 +150,7 @@ class CombatActions extends StrictObject implements \IteratorAggregate, \Countab
      *
      * @param int $roundsOfAiming
      * @return int
-     * @throws \DrdPlus\CurrentProperties\Exceptions\InvalidRoundsOfAiming
+     * @throws \DrdPlus\CurrentProperties\Exceptions\InvalidFormatOfRoundsOfAiming
      */
     private function sanitizeRoundsOfAiming($roundsOfAiming)
     {
@@ -167,7 +162,7 @@ class CombatActions extends StrictObject implements \IteratorAggregate, \Countab
 
             return $roundsOfAiming;
         } catch (\Granam\Integer\Tools\Exceptions\Exception $integerException) {
-            throw new Exceptions\InvalidRoundsOfAiming($integerException->getMessage());
+            throw new Exceptions\InvalidFormatOfRoundsOfAiming($integerException->getMessage());
         }
     }
 

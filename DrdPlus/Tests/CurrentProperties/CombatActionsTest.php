@@ -295,7 +295,6 @@ class CombatActionsTest extends TestWithMockery
         self::assertSame(-41, $combatActions->getDefenseNumberModifierAgainstFasterOpponent());
     }
 
-
     /**
      * @test
      */
@@ -309,5 +308,67 @@ class CombatActionsTest extends TestWithMockery
             $this->createCombatActionsCompatibilityTable($values, true)
         );
         self::assertSame(30, $combatActions->getSpeedModifier());
+    }
+
+    /**
+     * @test
+     * @expectedException \DrdPlus\CurrentProperties\Exceptions\UnknownCombatActionCode
+     * @expectedExceptionMessageRegExp ~swimming_against_current~
+     */
+    public function I_can_not_create_it_with_unknown_code()
+    {
+        new CombatActions(['swimming_against_current'], new CombatActionsCompatibilityTable());
+    }
+
+    /**
+     * @test
+     * @expectedException \DrdPlus\CurrentProperties\Exceptions\IncompatibleCombatActions
+     */
+    public function I_can_not_combine_ranged_only_with_melee_only_actions()
+    {
+        new CombatActions(
+            [MeleeCombatActionCode::COVER_OF_ALLY, RangedCombatActionCode::AIMED_SHOT],
+            new CombatActionsCompatibilityTable()
+        );
+    }
+
+    /**
+     * @test
+     * @expectedException \DrdPlus\CurrentProperties\Exceptions\IncompatibleCombatActions
+     * @expectedExceptionMessageRegExp ~attack_on_disabled_opponent with getting_up~
+     */
+    public function I_can_not_combine_native_incompatible_actions()
+    {
+        new CombatActions(
+            [CombatActionCode::ATTACK_ON_DISABLED_OPPONENT, CombatActionCode::GETTING_UP],
+            $this->createCombatActionsIncompatibilityTable()
+        );
+    }
+
+    /**
+     * @return \Mockery\MockInterface|CombatActionsCompatibilityTable
+     */
+    private function createCombatActionsIncompatibilityTable()
+    {
+        $combatActionsIncompatibilityTable = $this->mockery(CombatActionsCompatibilityTable::class);
+        $combatActionsIncompatibilityTable->shouldReceive('canCombineTwoActions')
+            ->with(\Mockery::type(CombatActionCode::class), \Mockery::type(CombatActionCode::class))
+            ->andReturn(false);
+
+        return $combatActionsIncompatibilityTable;
+    }
+
+    /**
+     * @test
+     * @expectedException \DrdPlus\CurrentProperties\Exceptions\InvalidFormatOfRoundsOfAiming
+     * @expectedExceptionMessageRegExp ~lifetime~
+     */
+    public function I_can_not_use_non_integer_as_rounds_of_aiming()
+    {
+        new CombatActions(
+            [CombatActionCode::GETTING_UP, CombatActionCode::HANDOVER_ITEM],
+            new CombatActionsCompatibilityTable(),
+            'lifetime'
+        );
     }
 }
