@@ -3,8 +3,6 @@ namespace DrdPlus\CurrentProperties;
 
 use DrdPlus\Codes\Armaments\BodyArmorCode;
 use DrdPlus\Codes\Armaments\HelmCode;
-use DrdPlus\Codes\RaceCode;
-use DrdPlus\Codes\SubRaceCode;
 use DrdPlus\Health\Health;
 use DrdPlus\Properties\Base\Agility;
 use DrdPlus\Properties\Base\Charisma;
@@ -29,6 +27,7 @@ use DrdPlus\Properties\Derived\Speed;
 use DrdPlus\Properties\Derived\Toughness;
 use DrdPlus\Properties\Derived\WoundBoundary;
 use DrdPlus\PropertiesByLevels\PropertiesByLevels;
+use DrdPlus\Races\Race;
 use DrdPlus\Tables\Measurements\Weight\Weight as CargoWeight;
 use DrdPlus\Tables\Tables;
 use Granam\Strict\Object\StrictObject;
@@ -41,10 +40,8 @@ class CurrentProperties extends StrictObject implements BaseProperties
     private $propertiesByLevels;
     /** @var Health */
     private $health;
-    /** @var RaceCode */
-    private $raceCode;
-    /** @var SubRaceCode */
-    private $subRaceCode;
+    /** @var Race */
+    private $race;
     /** @var BodyArmorCode */
     private $wornBodyArmor;
     /** @var HelmCode */
@@ -89,8 +86,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
      *
      * @param PropertiesByLevels $propertiesByLevels
      * @param Health $health
-     * @param RaceCode $raceCode
-     * @param SubRaceCode $subRaceCode
+     * @param Race $race
      * @param BodyArmorCode $wornBodyArmor for no armor use \DrdPlus\Codes\Armaments\BodyArmorCode::WITHOUT_ARMOR
      * @param HelmCode $wornHelm for no helm use \DrdPlus\Codes\Armaments\HelmCode::WITHOUT_HELM
      * @param CargoWeight $cargoWeight
@@ -100,8 +96,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
     public function __construct(
         PropertiesByLevels $propertiesByLevels,
         Health $health,
-        RaceCode $raceCode,
-        SubRaceCode $subRaceCode,
+        Race $race,
         BodyArmorCode $wornBodyArmor,
         HelmCode $wornHelm,
         CargoWeight $cargoWeight,
@@ -110,8 +105,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
     {
         $this->propertiesByLevels = $propertiesByLevels;
         $this->health = $health;
-        $this->raceCode = $raceCode;
-        $this->subRaceCode = $subRaceCode;
+        $this->race = $race;
         $this->cargoWeight = $cargoWeight;
         $this->tables = $tables;
         $this->guardArmamentWearable($wornBodyArmor, $this->getStrength(), $this->getSize(), $tables->getArmourer());
@@ -366,9 +360,14 @@ class CurrentProperties extends StrictObject implements BaseProperties
     public function getSenses()
     {
         if ($this->senses === null) {
+            $baseSenses = new Senses(
+                $this->getKnack(),
+                $this->race->getRaceCode(),
+                $this->race->getSubraceCode(),
+                $this->tables->getRacesTable()
+            );
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-            $this->senses = (new Senses($this->getKnack(), $this->raceCode, $this->subRaceCode, $this->tables->getRacesTable()))
-                ->add($this->health->getSignificantMalusFromPains($this->getWoundBoundary()));
+            $this->senses = $baseSenses->add($this->health->getSignificantMalusFromPains($this->getWoundBoundary()));
         }
 
         return $this->senses;

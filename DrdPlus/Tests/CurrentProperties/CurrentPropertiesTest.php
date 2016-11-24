@@ -3,8 +3,6 @@ namespace DrdPlus\Tests\CurrentProperties;
 
 use DrdPlus\Codes\Armaments\BodyArmorCode;
 use DrdPlus\Codes\Armaments\HelmCode;
-use DrdPlus\Codes\RaceCode;
-use DrdPlus\Codes\SubRaceCode;
 use DrdPlus\CurrentProperties\CurrentProperties;
 use DrdPlus\Health\Health;
 use DrdPlus\Properties\Base\Agility;
@@ -19,13 +17,21 @@ use DrdPlus\Properties\Body\HeightInCm;
 use DrdPlus\Properties\Body\Size;
 use DrdPlus\Properties\Body\WeightInKg;
 use DrdPlus\Properties\Derived\Beauty;
+use DrdPlus\Properties\Derived\Dangerousness;
+use DrdPlus\Properties\Derived\Dignity;
 use DrdPlus\Properties\Derived\Endurance;
+use DrdPlus\Properties\Derived\FatigueBoundary;
+use DrdPlus\Properties\Derived\Senses;
 use DrdPlus\Properties\Derived\Speed;
 use DrdPlus\Properties\Derived\Toughness;
+use DrdPlus\Properties\Derived\WoundBoundary;
 use DrdPlus\PropertiesByLevels\PropertiesByLevels;
+use DrdPlus\Races\Humans\CommonHuman;
+use DrdPlus\Races\Race;
 use DrdPlus\Tables\Armaments\Armourer;
 use DrdPlus\Tables\Measurements\Weight\Weight;
 use DrdPlus\Tables\Measurements\Weight\WeightTable;
+use DrdPlus\Tables\Races\RacesTable;
 use DrdPlus\Tables\Tables;
 use Granam\Tests\Tools\TestWithMockery;
 
@@ -84,16 +90,19 @@ class CurrentPropertiesTest extends TestWithMockery
         $propertiesByLevels->shouldReceive('getWill')->andReturn($baseWill = Will::getIt(88965));
         $health->shouldReceive('getWillMalusFromAfflictions')
             ->andReturn($willMalusFromAfflictions = -7845);
+        $expectedWill = $baseWill->add($willMalusFromAfflictions);
 
         // intelligence
         $propertiesByLevels->shouldReceive('getIntelligence')->andReturn($baseIntelligence = Intelligence::getIt(789456));
         $health->shouldReceive('getIntelligenceMalusFromAfflictions')
             ->andReturn($intelligenceMalusFromAfflictions = -556623);
+        $expectedIntelligence = $baseIntelligence->add($intelligenceMalusFromAfflictions);
 
         // charisma
         $propertiesByLevels->shouldReceive('getCharisma')->andReturn($baseCharisma = Charisma::getIt(556655));
         $health->shouldReceive('getCharismaMalusFromAfflictions')
             ->andReturn($charismaMalusFromAfflictions = -6666674);
+        $expectedCharisma = $baseCharisma->add($charismaMalusFromAfflictions);
 
         $propertiesByLevels->shouldReceive('getWeightInKg')->andReturn($weightInKg = $this->mockery(WeightInKg::class));
         $propertiesByLevels->shouldReceive('getHeightInCm')->andReturn($heightInCm = $this->mockery(HeightInCm::class));
@@ -102,12 +111,16 @@ class CurrentPropertiesTest extends TestWithMockery
         $propertiesByLevels->shouldReceive('getToughness')->andReturn($toughness = $this->mockery(Toughness::class));
         $propertiesByLevels->shouldReceive('getEndurance')->andReturn($endurance = $this->mockery(Endurance::class));
         $propertiesByLevels->shouldReceive('getSize')->andReturn($size);
+        $commonHuman = CommonHuman::getIt();
+        $tables->shouldReceive('getRacesTable')->andReturn($this->createRacesTable($commonHuman, $raceSensesValue = 3344551));
+        $propertiesByLevels->shouldReceive('getWoundBoundary')->andReturn($expectedWoundBoundary = $this->mockery(WoundBoundary::class));
+        $health->shouldReceive('getSignificantMalusFromPains')->with($expectedWoundBoundary)->andReturn($significantMalusFromPains = 11399);
+        $propertiesByLevels->shouldReceive('getFatigueBoundary')->andReturn($expectedFatigueBoundary = $this->mockery(FatigueBoundary::class));
 
         $currentProperties = new CurrentProperties(
             $propertiesByLevels,
             $health,
-            $this->createRaceCode(),
-            $this->createSubraceCode(),
+            $commonHuman,
             $bodyArmorCode,
             $helmCode,
             $cargoWeight,
@@ -116,40 +129,40 @@ class CurrentPropertiesTest extends TestWithMockery
 
         $this->I_can_get_current_properties(
             $currentProperties,
+            $commonHuman,
             $baseStrength,
             $strength,
             $strengthForOffhand,
             $agility,
             $expectedKnack,
-            $baseWill,
-            $willMalusFromAfflictions,
-            $baseIntelligence,
-            $intelligenceMalusFromAfflictions,
-            $baseCharisma,
-            $charismaMalusFromAfflictions,
+            $expectedWill,
+            $expectedIntelligence,
+            $expectedCharisma,
             $weightInKg,
             $heightInCm,
             $height,
             $age,
             $toughness,
             $endurance,
-            $size
+            $size,
+            $raceSensesValue,
+            $expectedWoundBoundary,
+            $expectedFatigueBoundary,
+            $significantMalusFromPains
         );
     }
 
     /**
      * @param CurrentProperties $currentProperties
+     * @param Race $race
      * @param Strength $baseStrength
-     * @param Strength $strength
+     * @param Strength $expectedStrength
      * @param Strength $strengthForOffhand
      * @param Agility $agility
      * @param Knack $expectedKnack
-     * @param Will $baseWill
-     * @param int $willMalusFromAfflictions
-     * @param Intelligence $baseIntelligence
-     * @param int $intelligenceMalusFromAfflictions
-     * @param Charisma $baseCharisma
-     * @param int $charismaMalusFromAfflictions
+     * @param Will $expectedWill
+     * @param Intelligence $expectedIntelligence
+     * @param Charisma $expectedCharisma
      * @param WeightInKg $weightInKg
      * @param HeightInCm $heightInCm
      * @param Height $height
@@ -157,43 +170,49 @@ class CurrentPropertiesTest extends TestWithMockery
      * @param Age $age
      * @param Toughness $toughness
      * @param Endurance $endurance
+     * @param int $raceSensesValue
+     * @param WoundBoundary $expectedWoundBoundary
+     * @param FatigueBoundary $expectedFatigueBoundary
+     * @param int $significantMalusFromPains
      */
     private function I_can_get_current_properties(
         CurrentProperties $currentProperties,
+        Race $race,
         Strength $baseStrength,
-        Strength $strength,
+        Strength $expectedStrength,
         Strength $strengthForOffhand,
         Agility $agility,
         Knack $expectedKnack,
-        Will $baseWill,
-        $willMalusFromAfflictions,
-        Intelligence $baseIntelligence,
-        $intelligenceMalusFromAfflictions,
-        Charisma $baseCharisma,
-        $charismaMalusFromAfflictions,
+        Will $expectedWill,
+        Intelligence $expectedIntelligence,
+        Charisma $expectedCharisma,
         WeightInKg $weightInKg,
         HeightInCm $heightInCm,
         Height $height,
         Age $age,
         Toughness $toughness,
         Endurance $endurance,
-        Size $size
+        Size $size,
+        $raceSensesValue,
+        WoundBoundary $expectedWoundBoundary,
+        FatigueBoundary $expectedFatigueBoundary,
+        $significantMalusFromPains
     )
     {
         // base properties
         self::assertSame($baseStrength, $currentProperties->getBodyStrength());
-        self::assertSame($strength, $currentProperties->getStrength());
-        self::assertSame($strength, $currentProperties->getStrengthForMainHandOnly());
+        self::assertSame($expectedStrength, $currentProperties->getStrength());
+        self::assertSame($expectedStrength, $currentProperties->getStrengthForMainHandOnly());
         self::assertSame($strengthForOffhand, $currentProperties->getStrengthForOffhandOnly());
         self::assertSame($agility, $currentProperties->getAgility());
         self::assertInstanceOf(Knack::class, $currentProperties->getKnack());
         self::assertSame($expectedKnack->getValue(), $currentProperties->getKnack()->getValue());
         self::assertInstanceOf(Will::class, $currentProperties->getWill());
-        self::assertSame($baseWill->getValue() + $willMalusFromAfflictions, $currentProperties->getWill()->getValue());
+        self::assertSame($expectedWill->getValue(), $currentProperties->getWill()->getValue());
         self::assertInstanceOf(Intelligence::class, $currentProperties->getIntelligence());
-        self::assertSame($baseIntelligence->getValue() + $intelligenceMalusFromAfflictions, $currentProperties->getIntelligence()->getValue());
+        self::assertSame($expectedIntelligence->getValue(), $currentProperties->getIntelligence()->getValue());
         self::assertInstanceOf(Charisma::class, $currentProperties->getCharisma());
-        self::assertSame($baseCharisma->getValue() + $charismaMalusFromAfflictions, $currentProperties->getCharisma()->getValue());
+        self::assertSame($expectedCharisma->getValue(), $currentProperties->getCharisma()->getValue());
 
         self::assertSame($weightInKg, $currentProperties->getWeightInKg());
         self::assertSame($heightInCm, $currentProperties->getHeightInCm());
@@ -202,14 +221,48 @@ class CurrentPropertiesTest extends TestWithMockery
         self::assertSame($toughness, $currentProperties->getToughness());
         self::assertSame($endurance, $currentProperties->getEndurance());
         self::assertSame($size, $currentProperties->getSize());
+        self::assertSame($expectedWoundBoundary, $currentProperties->getWoundBoundary());
+        self::assertSame($expectedFatigueBoundary, $currentProperties->getFatigueBoundary());
 
-        $expectedSpeed = new Speed($strength, $agility, $height);
+        $expectedSpeed = new Speed($expectedStrength, $agility, $height);
         self::assertInstanceOf(Speed::class, $currentProperties->getSpeed());
         self::assertSame($expectedSpeed->getValue(), $currentProperties->getSpeed()->getValue());
 
         $expectedBeauty = new Beauty($agility, $currentProperties->getKnack(), $currentProperties->getCharisma());
         self::assertInstanceOf(Beauty::class, $currentProperties->getBeauty());
         self::assertSame($expectedBeauty->getValue(), $currentProperties->getBeauty()->getValue());
+        $baseSenses = new Senses(
+            $expectedKnack,
+            $race->getRaceCode(),
+            $race->getSubraceCode(),
+            $this->createRacesTable($race, $raceSensesValue)
+        );
+        $expectedSenses = $baseSenses->add($significantMalusFromPains);
+        self::assertInstanceOf(Senses::class, $currentProperties->getSenses());
+        self::assertSame($expectedSenses->getValue(), $currentProperties->getSenses()->getValue());
+
+        $expectedDangerousness = new Dangerousness($expectedStrength, $expectedWill, $expectedCharisma);
+        self::assertInstanceOf(Dangerousness::class, $currentProperties->getDangerousness());
+        self::assertSame($expectedDangerousness->getValue(), $currentProperties->getDangerousness()->getValue());
+
+        $expectedDignity = new Dignity($expectedIntelligence, $expectedWill, $expectedCharisma);
+        self::assertInstanceOf(Dignity::class, $currentProperties->getDignity());
+        self::assertSame($expectedDignity->getValue(), $currentProperties->getDignity()->getValue());
+    }
+
+    /**
+     * @param Race $race
+     * @param int $raceSensesValue
+     * @return \Mockery\MockInterface|RacesTable
+     */
+    private function createRacesTable(Race $race, $raceSensesValue)
+    {
+        $racesTable = $this->mockery(RacesTable::class);
+        $racesTable->shouldReceive('getSenses')
+            ->with($race->getRaceCode(), $race->getSubraceCode())
+            ->andReturn($raceSensesValue);
+
+        return $racesTable;
     }
 
     /**
@@ -265,22 +318,6 @@ class CurrentPropertiesTest extends TestWithMockery
     private function createHealth()
     {
         return $this->mockery(Health::class);
-    }
-
-    /**
-     * @return \Mockery\MockInterface|RaceCode
-     */
-    private function createRaceCode()
-    {
-        return $this->mockery(RaceCode::class);
-    }
-
-    /**
-     * @return \Mockery\MockInterface|SubRaceCode
-     */
-    private function createSubraceCode()
-    {
-        return $this->mockery(SubRaceCode::class);
     }
 
     /**
