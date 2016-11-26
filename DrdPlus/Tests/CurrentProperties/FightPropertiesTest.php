@@ -409,4 +409,66 @@ class FightPropertiesTest extends TestWithMockery
             ->with($shieldCode)
             ->andReturn($lengthOfShield);
     }
+
+    /**
+     * @test
+     * @expectedException \DrdPlus\CurrentProperties\Exceptions\CanNotUseArmamentBecauseOfMissingStrength
+     * @dataProvider provideArmamentsBearing
+     * @param bool $weaponIsBearable
+     * @param bool $shieldIsBearable
+     * @param bool $armorIsBearable
+     * @param bool $helmIsBearable
+     */
+    public function I_can_not_create_it_with_unbearable_weapon_and_shield(
+        $weaponIsBearable,
+        $shieldIsBearable,
+        $armorIsBearable,
+        $helmIsBearable
+    )
+    {
+        $armourer = $this->createArmourer();
+
+        $weaponlikeCode = $this->createWeaponlike();
+        $strengthForMainHandOnly = Strength::getIt(123);
+        $size = Size::getIt(456);
+        $this->addCanUseArmament($armourer, $weaponlikeCode, $strengthForMainHandOnly, $size, $weaponIsBearable, true);
+
+        $shieldCode = $this->createShieldCode();
+        $strengthForOffhandOnly = Strength::getIt(234);
+        $this->addCanUseArmament($armourer, $shieldCode, $strengthForOffhandOnly, $size, $shieldIsBearable, true);
+
+        $strength = Strength::getIt(698);
+        $bodyArmorCode = BodyArmorCode::getIt(BodyArmorCode::WITHOUT_ARMOR);
+        $this->addCanUseArmament($armourer, $bodyArmorCode, $strength, $size, $armorIsBearable);
+        $helmCode = HelmCode::getIt(HelmCode::WITHOUT_HELM);
+        $this->addCanUseArmament($armourer, $helmCode, $strength, $size, $helmIsBearable);
+
+        new FightProperties(
+            $this->createCurrentProperties($strength, $size, $strengthForMainHandOnly, $strengthForOffhandOnly),
+            $this->createCombatActions($combatActionValues = ['foo']),
+            $this->createSkills(),
+            $bodyArmorCode,
+            $helmCode,
+            ProfessionCode::getIt(ProfessionCode::RANGER),
+            $this->createTables($weaponlikeCode, $combatActionValues, $armourer),
+            $weaponlikeCode,
+            $this->createWeaponlikeHolding(
+                false, /* does not keep weapon by both hands now */
+                true /* holds weapon by main hands now */
+            ),
+            false, // does not fight with two weapons now
+            $shieldCode,
+            false // enemy is not faster now
+        );
+    }
+
+    public function provideArmamentsBearing()
+    {
+        return [
+            [false, true, true, true],
+            [true, false, true, true],
+            [true, true, false, true],
+            [true, true, true, false],
+        ];
+    }
 }

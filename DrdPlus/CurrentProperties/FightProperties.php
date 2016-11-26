@@ -223,16 +223,12 @@ class FightProperties extends StrictObject
      */
     private function guardWeaponOrShieldWearable(WeaponlikeCode $weaponlikeCode, Strength $currentStrengthForWeapon)
     {
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        if (!$this->tables->getArmourer()->canUseArmament(
+        $this->guardArmamentWearable(
             $weaponlikeCode,
             $currentStrengthForWeapon,
-            $this->currentProperties->getSize())
-        ) {
-            throw new Exceptions\CanNotUseArmamentBecauseOfMissingStrength(
-                "'{$weaponlikeCode}' is too heavy to be used by with strength {$currentStrengthForWeapon}"
-            );
-        }
+            $this->currentProperties->getSize(),
+            $this->tables->getArmourer()
+        );
     }
 
     /**

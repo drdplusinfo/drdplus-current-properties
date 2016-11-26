@@ -351,4 +351,62 @@ class CurrentPropertiesTest extends TestWithMockery
     {
         return $this->mockery(Tables::class);
     }
+
+    /**
+     * @test
+     * @expectedException \DrdPlus\CurrentProperties\Exceptions\CanNotUseArmamentBecauseOfMissingStrength
+     * @dataProvider provideNotBearableArmorOrHelm
+     * @param $canUseArmor
+     * @param $canUseHelm
+     */
+    public function I_can_not_create_it_with_unbearable_armor_and_helm($canUseArmor, $canUseHelm)
+    {
+        // strength
+        $propertiesByLevels = $this->createPropertiesByLevels();
+        $health = $this->createHealth();
+        $health->shouldReceive('getStrengthMalusFromAfflictions')
+            ->andReturn($strengthMalusFromAfflictions = 'foo');
+        $propertiesByLevels->shouldReceive('getStrength')
+            ->andReturn($baseStrength = $this->mockery(Strength::class));
+        $baseStrength->shouldReceive('add')
+            ->with($strengthMalusFromAfflictions)
+            ->andReturn($strengthWithoutMalusFromLoad = $this->mockery(Strength::class));
+        $tables = $this->createTables();
+        $tables->shouldReceive('getWeightTable')->andReturn($weightTable = $this->mockery(WeightTable::class));
+        $cargoWeight = $this->createCargoWeight();
+        $weightTable->shouldReceive('getMalusFromLoad')
+            ->with($strengthWithoutMalusFromLoad, $cargoWeight)
+            ->andReturn($malusFromLoad = 112233);
+        $strengthWithoutMalusFromLoad->shouldReceive('add')
+            ->with($malusFromLoad)
+            ->andReturn($strength = $this->createStrength(2233441));
+        $strength->shouldReceive('sub')->with(2)->andReturn($strengthForOffhand = $this->mockery(Strength::class));
+
+        $bodyArmorCode = $this->createBodyArmorCode();
+        $helmCode = $this->createHelmCode();
+        $tables->shouldReceive('getArmourer')->andReturn($armourer = $this->mockery(Armourer::class));
+        $size = $this->mockery(Size::class);
+        $armourer->shouldReceive('canUseArmament')->with($bodyArmorCode, $strength, $size)->andReturn($canUseArmor);
+        $armourer->shouldReceive('canUseArmament')->with($helmCode, $strength, $size)->andReturn($canUseHelm);
+
+        $propertiesByLevels->shouldReceive('getSize')->andReturn($size);
+
+        new CurrentProperties(
+            $propertiesByLevels,
+            $health,
+            CommonHuman::getIt(),
+            $bodyArmorCode,
+            $helmCode,
+            $cargoWeight,
+            $tables
+        );
+    }
+
+    public function provideNotBearableArmorOrHelm()
+    {
+        return [
+            [false, true],
+            [true, false],
+        ];
+    }
 }
