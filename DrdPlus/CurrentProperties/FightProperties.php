@@ -61,6 +61,20 @@ class FightProperties extends StrictObject
     private $shield;
     /** @var bool */
     private $enemyIsFasterThanYou;
+    /** @var FightNumber */
+    private $fightNumber;
+    /** @var AttackNumber */
+    private $attackNumber;
+    /** @var BaseOfWounds */
+    private $baseOfWounds;
+    /** @var DefenseNumber */
+    private $defenseNumber;
+    /** @var DefenseNumberAgainstShooting */
+    private $defenseNumberAgainstShooting;
+    /** @var DefenseNumber */
+    private $defenseNumberWithShield;
+    /** @var Distance */
+    private $movedDistance;
 
     /**
      * Even shield can be used as a weapon, because it is @see WeaponlikeCode
@@ -313,15 +327,16 @@ class FightProperties extends StrictObject
      */
     public function getFightNumber()
     {
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        $fightNumber = new FightNumber(
-            $this->professionCode,
-            $this->currentProperties,
-            $this->currentProperties->getHeight()
-        );
+        if ($this->fightNumber === null) {
+            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+            $this->fightNumber = (new FightNumber(
+                $this->professionCode,
+                $this->currentProperties,
+                $this->currentProperties->getHeight()
+            ))->add($this->getFightNumberModifier());
+        }
 
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        return $fightNumber->add($this->getFightNumberModifier());
+        return $this->fightNumber;
     }
 
     /**
@@ -454,10 +469,12 @@ class FightProperties extends StrictObject
      */
     public function getAttackNumber(Distance $targetDistance)
     {
-        $attackNumber = $this->createBaseAttackNumber();
+        if ($this->attackNumber === null) {
+            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+            $this->attackNumber = $this->createBaseAttackNumber()->add($this->getAttackNumberModifier($targetDistance));
+        }
 
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        return $attackNumber->add($this->getAttackNumberModifier($targetDistance));
+        return $this->attackNumber;
     }
 
     /**
@@ -532,38 +549,42 @@ class FightProperties extends StrictObject
      */
     public function getBaseOfWounds()
     {
-        $baseOfWoundsModifier = 0;
+        if ($this->baseOfWounds === null) {
+            $baseOfWoundsModifier = 0;
 
-        // strength and weapon effects
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        $baseOfWoundsModifier += $this->tables->getArmourer()->getBaseOfWoundsUsingWeaponlike(
-            $this->weaponlike,
-            $this->getStrengthForWeaponlike()
-        );
+            // strength and weapon effects
+            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+            $baseOfWoundsModifier += $this->tables->getArmourer()->getBaseOfWoundsUsingWeaponlike(
+                $this->weaponlike,
+                $this->getStrengthForWeaponlike()
+            );
 
-        // skill effect
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        $baseOfWoundsModifier += $this->skills->getMalusToBaseOfWoundsWithWeaponlike(
-            $this->weaponlike,
-            $this->tables->getMissingWeaponSkillTable(),
-            $this->fightsWithTwoWeapons
-        );
+            // skill effect
+            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+            $baseOfWoundsModifier += $this->skills->getMalusToBaseOfWoundsWithWeaponlike(
+                $this->weaponlike,
+                $this->tables->getMissingWeaponSkillTable(),
+                $this->fightsWithTwoWeapons
+            );
 
-        // holding effect
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        $baseOfWoundsModifier += $this->tables->getArmourer()->getBaseOfWoundsBonusForHolding(
-            $this->weaponlike,
-            $this->weaponlikeHolding->getValue() === ItemHoldingCode::TWO_HANDS
-        );
+            // holding effect
+            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+            $baseOfWoundsModifier += $this->tables->getArmourer()->getBaseOfWoundsBonusForHolding(
+                $this->weaponlike,
+                $this->weaponlikeHolding->getValue() === ItemHoldingCode::TWO_HANDS
+            );
 
-        // action effects
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        $baseOfWoundsModifier += $this->combatActions->getBaseOfWoundsModifier(
-            $this->tables->getWeaponlikeTableByWeaponlikeCode($this->weaponlike)
-                ->getWoundsTypeOf($this->weaponlike) === WoundTypeCode::CRUSH
-        );
+            // action effects
+            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+            $baseOfWoundsModifier += $this->combatActions->getBaseOfWoundsModifier(
+                $this->tables->getWeaponlikeTableByWeaponlikeCode($this->weaponlike)
+                    ->getWoundsTypeOf($this->weaponlike) === WoundTypeCode::CRUSH
+            );
 
-        return new BaseOfWounds($baseOfWoundsModifier, $this->tables->getWoundsTable());
+            $this->baseOfWounds = new BaseOfWounds($baseOfWoundsModifier, $this->tables->getWoundsTable());
+        }
+
+        return $this->baseOfWounds;
     }
 
     /**
@@ -636,11 +657,15 @@ class FightProperties extends StrictObject
      */
     public function getDefenseNumber()
     {
-        if ($this->enemyIsFasterThanYou) {
-            return $this->getDefenseNumberAgainstFasterOpponent();
+        if ($this->defenseNumber === null) {
+            if ($this->enemyIsFasterThanYou) {
+                $this->defenseNumber = $this->getDefenseNumberAgainstFasterOpponent();
+            } else {
+                $this->defenseNumber = $this->getDefenseNumberAgainstSlowerOpponent();
+            }
         }
 
-        return $this->getDefenseNumberAgainstSlowerOpponent();
+        return $this->defenseNumber;
     }
 
     /**
@@ -737,8 +762,11 @@ class FightProperties extends StrictObject
      */
     public function getDefenseNumberWithShield()
     {
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        return $this->getDefenseNumber()->add($this->getCoverWithShield());
+        if ($this->defenseNumberWithShield === null) {
+            $this->defenseNumberWithShield = $this->getDefenseNumber()->add($this->getCoverWithShield());
+        }
+
+        return $this->defenseNumberWithShield;
     }
 
     /**
@@ -767,46 +795,64 @@ class FightProperties extends StrictObject
     }
 
     /**
-     * Base defense number WITHOUT weapon
-     * But shield cover is counted AUTOMATICALLY because shield cover is taken into account
-     * even if you do not know about attack, see PPH page 86 right column.
+     * You do not know how to cover against shooting by a weapon without special skill and that skill is not
+     * part of PPH.
+     * Therefore this is in fact base defense number WITHOUT weapon, just with size taken into account.
      *
      * @return DefenseNumberAgainstShooting
      */
     public function getDefenseNumberAgainstShooting()
     {
-        return new DefenseNumberAgainstShooting($this->getDefenseNumber(), $this->currentProperties->getSize());
+        if ($this->defenseNumberAgainstShooting === null) {
+            $this->defenseNumberAgainstShooting = new DefenseNumberAgainstShooting(
+                $this->getDefenseNumber(),
+                $this->currentProperties->getSize()
+            );
+        }
+
+        return $this->defenseNumberAgainstShooting;
     }
 
     /**
-     * Note: you do not know how to cover against shooting by a weaponlike without special skill and that skill is not
+     * Note: you do not know how to cover against shooting by a weapon without special skill and that skill is not
      * part of PPH.
      *
      * @return DefenseNumberAgainstShooting
      */
     public function getDefenseNumberWithShieldAgainstShooting()
     {
-        return new DefenseNumberAgainstShooting($this->getDefenseNumberWithShield(), $this->currentProperties->getSize());
+        if ($this->defenseNumberAgainstShooting === null) {
+            $this->defenseNumberAgainstShooting = new DefenseNumberAgainstShooting(
+                $this->getDefenseNumberWithShield(),
+                $this->currentProperties->getSize()
+            );
+        }
+
+        return $this->defenseNumberAgainstShooting;
     }
 
     // MOVEMENT
 
     /**
-     * NOte: without chosen movement action you are not moving at all, therefore moved distance is zero.
+     * Note: without chosen movement action you are not moving at all, therefore moved distance is zero.
      *
      * @return Distance
      */
     public function getMovedDistance()
     {
-        if ($this->combatActions->getSpeedModifier() === 0) {
+        if ($this->movedDistance === null) {
+            if ($this->combatActions->getSpeedModifier() === 0) {
+                /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+                $this->movedDistance = new Distance(0, Distance::M, $this->tables->getDistanceTable());
+            }
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-            return new Distance(0, Distance::M, $this->tables->getDistanceTable());
-        }
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        $speed = $this->currentProperties->getSpeed()->add($this->combatActions->getSpeedModifier());
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        $distanceBonus = new DistanceBonus($speed->getValue(), $this->tables->getDistanceTable());
+            $speed = $this->currentProperties->getSpeed()->add($this->combatActions->getSpeedModifier());
+            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+            $distanceBonus = new DistanceBonus($speed->getValue(), $this->tables->getDistanceTable());
 
-        return $distanceBonus->getDistance();
+            $this->movedDistance = $distanceBonus->getDistance();
+        }
+
+        return $this->movedDistance;
     }
 }

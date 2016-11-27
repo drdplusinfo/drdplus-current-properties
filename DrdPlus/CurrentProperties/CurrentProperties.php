@@ -410,7 +410,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
     }
 
     /**
-     * Wound boundary is not affected by temporary maluses, therefore is same as given on new level.
+     * Wound boundary is not affected by temporary maluses, therefore is same as given by current level.
      *
      * @return WoundBoundary
      */
@@ -420,7 +420,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
     }
 
     /**
-     * Fatigue boundary is not affected by temporary maluses, therefore is same as given on new level.
+     * Fatigue boundary is not affected by temporary maluses, therefore is same as given by current level.
      *
      * @return FatigueBoundary
      */
