@@ -368,8 +368,10 @@ class FightProperties extends StrictObject
      */
     private function getFightNumberMalusByStrength()
     {
+        $fightNumberMalus = 0;
+
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        $fightNumberMalus = $this->tables->getArmourer()->getFightNumberMalusByStrengthWithWeaponOrShield(
+        $fightNumberMalus += $this->tables->getArmourer()->getFightNumberMalusByStrengthWithWeaponOrShield(
             $this->weaponlike,
             $this->getStrengthForWeaponlike()
         );
@@ -387,18 +389,15 @@ class FightProperties extends StrictObject
      */
     private function getFightNumberMalusBySkills()
     {
-        $fightNumberMalus = $this->getFightNumberMalusFromProtectivesBySkills();
-        $fightNumberMalus += $this->getFightNumberMalusFromWeaponlikesBySkills();
-
-        return $fightNumberMalus;
-    }
-
-    /**
-     * @return int
-     */
-    private function getFightNumberMalusFromProtectivesBySkills()
-    {
         $fightNumberMalus = 0;
+
+        // weapon
+        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+        $fightNumberMalus += $this->skills->getMalusToFightNumberWithWeaponlike(
+            $this->weaponlike,
+            $this->tables->getMissingWeaponSkillTable(),
+            $this->fightsWithTwoWeapons
+        );
 
         // armor and helm
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
@@ -418,7 +417,7 @@ class FightProperties extends StrictObject
             $this->shield,
             $this->tables->getArmourer()
         );
-        // rare situation when you have two shields and uses one as a weapon or just a shield both as a shield and a weapon
+        // rare situation when you have two shields and uses one as a weapon (or a shield both as a shield and a weapon)
         if ($this->weaponlike->isShield()) {
             /** @var ShieldCode $shieldAsWeapon */
             $shieldAsWeapon = $this->weaponlike;
@@ -430,19 +429,6 @@ class FightProperties extends StrictObject
         }
 
         return $fightNumberMalus;
-    }
-
-    /**
-     * @return int
-     */
-    private function getFightNumberMalusFromWeaponlikesBySkills()
-    {
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        return $this->skills->getMalusToFightNumberWithWeaponlike(
-            $this->weaponlike,
-            $this->tables->getMissingWeaponSkillTable(),
-            $this->fightsWithTwoWeapons
-        );
     }
 
     /**
