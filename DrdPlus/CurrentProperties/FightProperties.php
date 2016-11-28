@@ -507,17 +507,17 @@ class FightProperties extends StrictObject
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
         $attackNumberModifier += $armourer->getOffensivenessOfWeaponlike($this->weaponlike);
 
+        // combat actions effect
+        $attackNumberModifier += $this->combatActions->getAttackNumberModifier();
+
         // distance effect (for ranged only)
-        if ($targetDistance > 1 && $this->weaponlike->isRanged()) {
+        if ($targetDistance->getValue() > 1 && $this->weaponlike->isRanged()) {
             $armourer->getAttackNumberModifierByDistance(
                 $targetDistance,
                 $this->getEncounterRange(),
                 $this->getMaximalRange()
             );
         }
-
-        // combat actions effect
-        $attackNumberModifier += $this->combatActions->getAttackNumberModifier();
 
         return $attackNumberModifier;
     }
