@@ -77,6 +77,8 @@ class FightProperties extends StrictObject
     private $movedDistance;
     /** @var MaximalRange */
     private $maximalRange;
+    /** @var EncounterRange */
+    private $encounterRange;
 
     /**
      * Even shield can be used as a weapon, because it is @see WeaponlikeCode
@@ -601,14 +603,18 @@ class FightProperties extends StrictObject
      */
     public function getEncounterRange()
     {
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        return new EncounterRange(
-            $this->tables->getArmourer()->getEncounterRangeWithWeaponlike(
-                $this->weaponlike,
-                $this->getStrengthForWeaponlike(),
-                $this->currentProperties->getSpeed()
-            )
-        );
+        if ($this->encounterRange === null) {
+            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+            $this->encounterRange = new EncounterRange(
+                $this->tables->getArmourer()->getEncounterRangeWithWeaponlike(
+                    $this->weaponlike,
+                    $this->getStrengthForWeaponlike(),
+                    $this->currentProperties->getSpeed()
+                )
+            );
+        }
+
+        return $this->encounterRange;
     }
 
     /**

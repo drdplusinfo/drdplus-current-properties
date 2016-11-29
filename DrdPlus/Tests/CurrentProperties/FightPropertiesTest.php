@@ -362,6 +362,7 @@ class FightPropertiesTest extends TestWithMockery
         $encounterRange = $fightProperties->getEncounterRange();
         self::assertInstanceOf(EncounterRange::class, $encounterRange);
         self::assertSame($encounterRangeValue, $encounterRange->getValue());
+        self::assertSame($encounterRange, $fightProperties->getEncounterRange(), 'Same instance expected');
     }
 
     /**
