@@ -1115,7 +1115,7 @@ class FightPropertiesTest extends TestWithMockery
         $this->addCanUseArmament($armourer, $bodyArmorCode, $strength, $size, true);
         $helmCode = HelmCode::getIt(HelmCode::WITHOUT_HELM);
         $this->addCanUseArmament($armourer, $helmCode, $strength, $size, true);
-        
+
         new FightProperties(
             $this->createCurrentProperties($strength, $size, $strengthForMainHandOnly, $strengthForOffhandOnly),
             $this->createCombatActions($combatActionValues = ['foo']),
@@ -1182,6 +1182,49 @@ class FightPropertiesTest extends TestWithMockery
             true, // fights with two weapons (does not affect this test)
             $shieldCode,
             false // enemy is not faster now
+        );
+    }
+
+    /**
+     * @test
+     * @expectedException \DrdPlus\CurrentProperties\Exceptions\ImpossibleActionsWithCurrentWeaponlike
+     * @expectedExceptionMessageRegExp ~foo~
+     */
+    public function I_can_not_create_it_with_weapon_incompatible_actions()
+    {
+        $armourer = $this->createArmourer();
+
+        $weaponlikeCode = $this->createWeapon();
+        $strengthForMainHandOnly = Strength::getIt(123);
+        $size = Size::getIt(456);
+        $this->addCanUseArmament($armourer, $weaponlikeCode, $strengthForMainHandOnly, $size, true, true);
+
+        $shieldCode = ShieldCode::getIt(ShieldCode::WITHOUT_SHIELD);
+        $strengthForOffhandOnly = Strength::getIt(234);
+        $this->addCanUseArmament($armourer, $shieldCode, $strengthForOffhandOnly, $size, true, true);
+
+        $strength = Strength::getIt(698);
+        $bodyArmorCode = BodyArmorCode::getIt(BodyArmorCode::WITHOUT_ARMOR);
+        $this->addCanUseArmament($armourer, $bodyArmorCode, $strength, $size, true);
+        $helmCode = HelmCode::getIt(HelmCode::WITHOUT_HELM);
+        $this->addCanUseArmament($armourer, $helmCode, $strength, $size, true);
+
+        new FightProperties(
+            $this->createCurrentProperties($strength, $size, $strengthForMainHandOnly, $strengthForOffhandOnly),
+            $this->createCombatActions($combatActionValues = ['foo']),
+            $this->createSkills(),
+            $bodyArmorCode,
+            $helmCode,
+            ProfessionCode::getIt(ProfessionCode::RANGER),
+            $this->createTables($weaponlikeCode, ['bar'] /* different combat actions possible */, $armourer),
+            $weaponlikeCode,
+            $this->createWeaponlikeHolding(
+                false, // does not hold it by two hands
+                true // holds weapon by main hand
+            ),
+            true, // fights with two weapons (does not affect this test)
+            $shieldCode,
+            false // enemy is not faster now (does not affect this test)
         );
     }
 
