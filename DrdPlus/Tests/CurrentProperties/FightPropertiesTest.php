@@ -22,6 +22,7 @@ use DrdPlus\Properties\Combat\AttackNumber;
 use DrdPlus\Properties\Combat\EncounterRange;
 use DrdPlus\Properties\Combat\FightNumber;
 use DrdPlus\Properties\Combat\LoadingInRounds;
+use DrdPlus\Properties\Combat\MaximalRange;
 use DrdPlus\Properties\Derived\Speed;
 use DrdPlus\Skills\Skills;
 use DrdPlus\Tables\Actions\CombatActionsWithWeaponTypeCompatibilityTable;
@@ -156,6 +157,21 @@ class FightPropertiesTest extends TestWithMockery
             false // enemy is not faster now
         );
 
+        $this->I_can_get_expected_fight_number(
+            $fightProperties,
+            $professionCode,
+            $currentProperties,
+            $fightNumberMalusByStrengthWithWeapon,
+            $fightNumberMalusByStrengthWithShield,
+            $fightNumberMalusFromWeapon,
+            $fightNumberMalusFromBodyArmor,
+            $fightNumberMalusFromHelm,
+            $fightNumberMalusFromShield,
+            $weaponLength,
+            $shieldLength,
+            $combatActionsFightNumberModifier
+        );
+
         $this->I_can_get_expected_attack_number(
             $fightProperties,
             $currentProperties,
@@ -177,20 +193,53 @@ class FightPropertiesTest extends TestWithMockery
 
         $this->I_can_get_expected_encounter_range($fightProperties, $encounterRangeValue);
 
-        $this->I_can_get_expected_fight_number(
-            $fightProperties,
-            $professionCode,
-            $currentProperties,
-            $fightNumberMalusByStrengthWithWeapon,
-            $fightNumberMalusByStrengthWithShield,
-            $fightNumberMalusFromWeapon,
-            $fightNumberMalusFromBodyArmor,
-            $fightNumberMalusFromHelm,
-            $fightNumberMalusFromShield,
-            $weaponLength,
-            $shieldLength,
-            $combatActionsFightNumberModifier
-        );
+        $this->I_can_get_expected_maximal_range($fightProperties, $weaponlikeCode);
+    }
+
+    /**
+     * @param FightProperties $fightProperties
+     * @param ProfessionCode $professionCode
+     * @param CurrentProperties $currentProperties
+     * @param int $fightNumberMalusFromStrengthForWeapon
+     * @param int $fightNumberMalusFromStrengthForShield
+     * @param int $fightNumberMalusFromWeapon
+     * @param int $fightNumberMalusFromBodyArmor
+     * @param int $fightNumberMalusFromHelm
+     * @param int $fightNumberMalusFromShield
+     * @param int $weaponLength
+     * @param int $shieldLength
+     * @param int $combatActionsFightNumberModifier
+     */
+    private function I_can_get_expected_fight_number(
+        FightProperties $fightProperties,
+        ProfessionCode $professionCode,
+        CurrentProperties $currentProperties,
+        $fightNumberMalusFromStrengthForWeapon,
+        $fightNumberMalusFromStrengthForShield,
+        $fightNumberMalusFromWeapon,
+        $fightNumberMalusFromBodyArmor,
+        $fightNumberMalusFromHelm,
+        $fightNumberMalusFromShield,
+        $weaponLength,
+        $shieldLength,
+        $combatActionsFightNumberModifier
+    )
+    {
+        $fightNumber = $fightProperties->getFightNumber();
+        self::assertInstanceOf(FightNumber::class, $fightNumber);
+        self::assertSame($fightNumber, $fightProperties->getFightNumber(), 'Same instance should be given');
+        $expectedFightNumber = (new FightNumber($professionCode, $currentProperties, $currentProperties->getHeight()))
+            ->add(
+                $fightNumberMalusFromStrengthForWeapon
+                + $fightNumberMalusFromStrengthForShield
+                + $fightNumberMalusFromWeapon
+                + $fightNumberMalusFromBodyArmor
+                + $fightNumberMalusFromHelm
+                + $fightNumberMalusFromShield
+                + max($weaponLength, $shieldLength)
+                + $combatActionsFightNumberModifier
+            );
+        self::assertSame($expectedFightNumber->getValue(), $fightNumber->getValue());
     }
 
     /**
@@ -262,7 +311,10 @@ class FightPropertiesTest extends TestWithMockery
      * @param FightProperties $fightProperties
      * @param int $encounterRangeValue
      */
-    private function I_can_get_expected_encounter_range(FightProperties $fightProperties, $encounterRangeValue)
+    private function I_can_get_expected_encounter_range(
+        FightProperties $fightProperties,
+        $encounterRangeValue
+    )
     {
         $encounterRange = $fightProperties->getEncounterRange();
         self::assertInstanceOf(EncounterRange::class, $encounterRange);
@@ -271,48 +323,14 @@ class FightPropertiesTest extends TestWithMockery
 
     /**
      * @param FightProperties $fightProperties
-     * @param ProfessionCode $professionCode
-     * @param CurrentProperties $currentProperties
-     * @param int $fightNumberMalusFromStrengthForWeapon
-     * @param int $fightNumberMalusFromStrengthForShield
-     * @param int $fightNumberMalusFromWeapon
-     * @param int $fightNumberMalusFromBodyArmor
-     * @param int $fightNumberMalusFromHelm
-     * @param int $fightNumberMalusFromShield
-     * @param int $weaponLength
-     * @param int $shieldLength
-     * @param int $combatActionsFightNumberModifier
+     * @param WeaponlikeCode $weaponlikeCode
      */
-    private function I_can_get_expected_fight_number(
-        FightProperties $fightProperties,
-        ProfessionCode $professionCode,
-        CurrentProperties $currentProperties,
-        $fightNumberMalusFromStrengthForWeapon,
-        $fightNumberMalusFromStrengthForShield,
-        $fightNumberMalusFromWeapon,
-        $fightNumberMalusFromBodyArmor,
-        $fightNumberMalusFromHelm,
-        $fightNumberMalusFromShield,
-        $weaponLength,
-        $shieldLength,
-        $combatActionsFightNumberModifier
-    )
+    private function I_can_get_expected_maximal_range(FightProperties $fightProperties, WeaponlikeCode $weaponlikeCode)
     {
-        $fightNumber = $fightProperties->getFightNumber();
-        self::assertInstanceOf(FightNumber::class, $fightNumber);
-        self::assertSame($fightNumber, $fightProperties->getFightNumber(), 'Same instance should be given');
-        $expectedFightNumber = (new FightNumber($professionCode, $currentProperties, $currentProperties->getHeight()))
-            ->add(
-                $fightNumberMalusFromStrengthForWeapon
-                + $fightNumberMalusFromStrengthForShield
-                + $fightNumberMalusFromWeapon
-                + $fightNumberMalusFromBodyArmor
-                + $fightNumberMalusFromHelm
-                + $fightNumberMalusFromShield
-                + max($weaponLength, $shieldLength)
-                + $combatActionsFightNumberModifier
-            );
-        self::assertSame($expectedFightNumber->getValue(), $fightNumber->getValue());
+        self::assertNotInstanceOf(RangedWeaponCode::class, $weaponlikeCode);
+        $expectedMaximalRange = MaximalRange::createForMeleeWeapon($fightProperties->getEncounterRange());
+        self::assertInstanceOf(MaximalRange::class, $fightProperties->getMaximalRange());
+        self::assertSame($expectedMaximalRange->getValue(), $fightProperties->getMaximalRange()->getValue());
     }
 
     /**
