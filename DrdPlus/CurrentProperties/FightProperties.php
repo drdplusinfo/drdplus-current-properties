@@ -712,12 +712,10 @@ class FightProperties extends StrictObject
         $coverModifier += $this->tables->getArmourer()->getCoverOfWeaponOrShield($this->weaponlike);
 
         // skill effect
-        if ($this->weaponlike->isWeapon()) {
-            /** @var WeaponCode $weapon */
-            $weapon = $this->weaponlike;
+        if ($this->weaponlike instanceof WeaponCode) {
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
             $coverModifier += $this->skills->getMalusToCoverWithWeapon(
-                $weapon,
+                $this->weaponlike,
                 $this->tables->getMissingWeaponSkillTable(),
                 $this->fightsWithTwoWeapons
             );
