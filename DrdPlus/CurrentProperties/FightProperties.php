@@ -79,6 +79,8 @@ class FightProperties extends StrictObject
     private $maximalRange;
     /** @var EncounterRange */
     private $encounterRange;
+    /** @var LoadingInRounds */
+    private $loadingInRounds;
 
     /**
      * Even shield can be used as a weapon, because it is @see WeaponlikeCode
@@ -580,17 +582,21 @@ class FightProperties extends StrictObject
      */
     public function getLoadingInRounds()
     {
-        $loadingInRoundsValue = 0;
-        if ($this->weaponlike instanceof RangedWeaponCode) {
+        if ($this->loadingInRounds === null) {
+            $loadingInRoundsValue = 0;
+            if ($this->weaponlike instanceof RangedWeaponCode) {
+                /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+                $loadingInRoundsValue = $this->tables->getArmourer()->getLoadingInRoundsByStrengthWithRangedWeapon(
+                    $this->weaponlike,
+                    $this->getStrengthForWeaponlike()
+                );
+            }
+
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-            $loadingInRoundsValue = $this->tables->getArmourer()->getLoadingInRoundsByStrengthWithRangedWeapon(
-                $this->weaponlike,
-                $this->getStrengthForWeaponlike()
-            );
+            $this->loadingInRounds = new LoadingInRounds($loadingInRoundsValue);
         }
 
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        return new LoadingInRounds($loadingInRoundsValue);
+        return $this->loadingInRounds;
     }
 
     /**

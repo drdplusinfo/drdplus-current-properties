@@ -348,6 +348,7 @@ class FightPropertiesTest extends TestWithMockery
         self::assertInstanceOf(LoadingInRounds::class, $loadingInRounds);
         self::assertNotInstanceOf(RangedWeaponCode::class, $weaponlikeCode);
         self::assertSame(0, $loadingInRounds->getValue());
+        self::assertSame($loadingInRounds, $fightProperties->getLoadingInRounds());
     }
 
     /**
