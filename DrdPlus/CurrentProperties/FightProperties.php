@@ -63,8 +63,6 @@ class FightProperties extends StrictObject
     private $enemyIsFasterThanYou;
     /** @var FightNumber */
     private $fightNumber;
-    /** @var AttackNumber */
-    private $attackNumber;
     /** @var BaseOfWounds */
     private $baseOfWounds;
     /** @var DefenseNumber */
@@ -455,12 +453,8 @@ class FightProperties extends StrictObject
      */
     public function getAttackNumber(Distance $targetDistance)
     {
-        if ($this->attackNumber === null) {
-            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-            $this->attackNumber = $this->createBaseAttackNumber()->add($this->getAttackNumberModifier($targetDistance));
-        }
-
-        return $this->attackNumber;
+        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+        return $this->createBaseAttackNumber()->add($this->getAttackNumberModifier($targetDistance));
     }
 
     /**
@@ -536,18 +530,18 @@ class FightProperties extends StrictObject
     public function getBaseOfWounds()
     {
         if ($this->baseOfWounds === null) {
-            $baseOfWoundsModifier = 0;
+            $baseOfWoundsValue = 0;
 
             // strength and weapon effects
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-            $baseOfWoundsModifier += $this->tables->getArmourer()->getBaseOfWoundsUsingWeaponlike(
+            $baseOfWoundsValue += $this->tables->getArmourer()->getBaseOfWoundsUsingWeaponlike(
                 $this->weaponlike,
                 $this->getStrengthForWeaponlike()
             );
 
             // skill effect
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-            $baseOfWoundsModifier += $this->skills->getMalusToBaseOfWoundsWithWeaponlike(
+            $baseOfWoundsValue += $this->skills->getMalusToBaseOfWoundsWithWeaponlike(
                 $this->weaponlike,
                 $this->tables->getMissingWeaponSkillTable(),
                 $this->fightsWithTwoWeapons
@@ -555,19 +549,19 @@ class FightProperties extends StrictObject
 
             // holding effect
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-            $baseOfWoundsModifier += $this->tables->getArmourer()->getBaseOfWoundsBonusForHolding(
+            $baseOfWoundsValue += $this->tables->getArmourer()->getBaseOfWoundsBonusForHolding(
                 $this->weaponlike,
-                $this->weaponlikeHolding->getValue() === ItemHoldingCode::TWO_HANDS
+                $this->weaponlikeHolding->holdsByTwoHands()
             );
 
             // action effects
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-            $baseOfWoundsModifier += $this->combatActions->getBaseOfWoundsModifier(
+            $baseOfWoundsValue += $this->combatActions->getBaseOfWoundsModifier(
                 $this->tables->getWeaponlikeTableByWeaponlikeCode($this->weaponlike)
                     ->getWoundsTypeOf($this->weaponlike) === WoundTypeCode::CRUSH
             );
 
-            $this->baseOfWounds = new BaseOfWounds($baseOfWoundsModifier, $this->tables->getWoundsTable());
+            $this->baseOfWounds = new BaseOfWounds($baseOfWoundsValue, $this->tables->getWoundsTable());
         }
 
         return $this->baseOfWounds;

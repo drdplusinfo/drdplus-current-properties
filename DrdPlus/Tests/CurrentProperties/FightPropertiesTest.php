@@ -8,6 +8,7 @@ use DrdPlus\Codes\Armaments\ShieldCode;
 use DrdPlus\Codes\Armaments\WeaponlikeCode;
 use DrdPlus\Codes\ItemHoldingCode;
 use DrdPlus\Codes\ProfessionCode;
+use DrdPlus\Codes\WoundTypeCode;
 use DrdPlus\CurrentProperties\CombatActions;
 use DrdPlus\CurrentProperties\CurrentProperties;
 use DrdPlus\CurrentProperties\FightProperties;
@@ -21,8 +22,10 @@ use DrdPlus\Properties\Combat\FightNumber;
 use DrdPlus\Skills\Skills;
 use DrdPlus\Tables\Actions\CombatActionsWithWeaponTypeCompatibilityTable;
 use DrdPlus\Tables\Armaments\Armourer;
+use DrdPlus\Tables\Armaments\Partials\WeaponlikeTable;
 use DrdPlus\Tables\Armaments\Weapons\MissingWeaponSkillTable;
 use DrdPlus\Tables\Measurements\Distance\Distance;
+use DrdPlus\Tables\Measurements\Wounds\WoundsBonus;
 use DrdPlus\Tables\Tables;
 use Granam\Tests\Tools\TestWithMockery;
 
@@ -74,6 +77,20 @@ class FightPropertiesTest extends TestWithMockery
         $this->addOffensiveness($armourer, $weaponlikeCode, $offensiveness = 12123);
         $this->addCombatActionsAttackNumber($combatActions, $combatActionsAttackNumberModifier = 8171);
 
+        // base of wounds
+        $this->addWeaponBaseOfWounds($armourer, $weaponlikeCode, $strengthForMainHandOnly, $weaponBaseOfWounds = 91967);
+        $this->addBaseOfWoundsMalusFromSkills(
+            $skills,
+            $weaponlikeCode,
+            $missingWeaponSkillsTable,
+            false, // does not fight with two weapons
+            $baseOfWoundsMalusFromSkills = -12607
+        );
+        $this->addBaseOfWoundsBonusByHolding($armourer, $weaponlikeCode, false /* not hold by two hands */, $baseOfWoundsBonusForHolding = 748);
+        $tables = $this->createTables($weaponlikeCode, $combatActionValues, $armourer, $missingWeaponSkillsTable);
+        $this->addWoundsTypeOf($tables, $weaponlikeCode, WoundTypeCode::CUT);
+        $this->addBaseOfWoundsModifierFromActions($combatActions, false /* weapon is not crushing */, $baseOfWoundsModifierFromActions = -1357);
+
         // fight number
         $this->addFightNumberMalusByStrengthWithWeaponOrShield(
             $armourer,
@@ -115,7 +132,7 @@ class FightPropertiesTest extends TestWithMockery
             $wornBodyArmor,
             $wornHelm,
             $professionCode = ProfessionCode::getIt(ProfessionCode::FIGHTER),
-            $this->createTables($weaponlikeCode, $combatActionValues, $armourer, $missingWeaponSkillsTable),
+            $tables,
             $weaponlikeCode,
             $this->createWeaponlikeHolding(
                 false, /* does not keep weapon by both hands now */
@@ -133,6 +150,14 @@ class FightPropertiesTest extends TestWithMockery
             $attackNumberMalusBySkillsWithWeapon,
             $offensiveness,
             $combatActionsAttackNumberModifier
+        );
+
+        $this->I_can_get_expected_base_of_wounds(
+            $fightProperties,
+            $weaponBaseOfWounds,
+            $baseOfWoundsMalusFromSkills,
+            $baseOfWoundsBonusForHolding,
+            $baseOfWoundsModifierFromActions
         );
 
         $this->I_can_get_expected_fight_number(
@@ -170,6 +195,7 @@ class FightPropertiesTest extends TestWithMockery
     {
         $attackNumber = $fightProperties->getAttackNumber($this->createDistance(0));
         self::assertInstanceOf(AttackNumber::class, $attackNumber);
+
         $expectedAttackNumber = AttackNumber::createFromAttack(new Attack($currentProperties->getAgility()))
             ->add(
                 $attackNumberMalusByStrengthWithWeapon
@@ -178,6 +204,29 @@ class FightPropertiesTest extends TestWithMockery
                 + $combatActionsAttackNumberModifier
             );
         self::assertSame($expectedAttackNumber->getValue(), $attackNumber->getValue());
+    }
+
+    /**
+     * @param FightProperties $fightProperties
+     * @param int $weaponBaseOfWounds
+     * @param int $baseOfWoundsMalusFromSkills
+     * @param int $baseOfWoundsBonusForHolding
+     * @param int $baseOfWoundsModifierFromActions
+     */
+    private function I_can_get_expected_base_of_wounds(
+        FightProperties $fightProperties,
+        $weaponBaseOfWounds,
+        $baseOfWoundsMalusFromSkills,
+        $baseOfWoundsBonusForHolding,
+        $baseOfWoundsModifierFromActions
+    )
+    {
+        $baseOfWounds = $fightProperties->getBaseOfWounds();
+        self::assertInstanceOf(WoundsBonus::class, $baseOfWounds);
+        self::assertSame($baseOfWounds, $fightProperties->getBaseOfWounds(), 'Same instance should be given');
+        $expectedBaseOfWoundsValue = $weaponBaseOfWounds + $baseOfWoundsMalusFromSkills + $baseOfWoundsBonusForHolding
+            + $baseOfWoundsModifierFromActions;
+        self::assertSame($baseOfWounds->getValue(), $expectedBaseOfWoundsValue);
     }
 
     /**
@@ -211,6 +260,7 @@ class FightPropertiesTest extends TestWithMockery
     {
         $fightNumber = $fightProperties->getFightNumber();
         self::assertInstanceOf(FightNumber::class, $fightNumber);
+        self::assertSame($fightNumber, $fightProperties->getFightNumber(), 'Same instance should be given');
         $expectedFightNumber = (new FightNumber($professionCode, $currentProperties, $currentProperties->getHeight()))
             ->add(
                 $fightNumberMalusFromStrengthForWeapon
@@ -223,7 +273,6 @@ class FightPropertiesTest extends TestWithMockery
                 + $combatActionsFightNumberModifier
             );
         self::assertSame($expectedFightNumber->getValue(), $fightNumber->getValue());
-        self::assertSame($fightNumber, $fightProperties->getFightNumber(), 'Same instance should be given');
     }
 
     /**
@@ -351,8 +400,24 @@ class FightPropertiesTest extends TestWithMockery
             $tables->shouldReceive('getMissingWeaponSkillTable')
                 ->andReturn($missingWeaponSkillsTable);
         }
+        $tables->shouldDeferMissing();
 
         return $tables;
+    }
+
+    /**
+     * @param Tables|\Mockery\MockInterface $tables
+     * @param WeaponlikeCode $weaponlikeCode
+     * @param string $woundType
+     */
+    private function addWoundsTypeOf(Tables $tables, WeaponlikeCode $weaponlikeCode, $woundType)
+    {
+        $tables->shouldReceive('getWeaponlikeTableByWeaponlikeCode')
+            ->with($weaponlikeCode)
+            ->andReturn($weaponlikeTable = $this->mockery(WeaponlikeTable::class));
+        $weaponlikeTable->shouldReceive('getWoundsTypeOf')
+            ->with($weaponlikeCode)
+            ->andReturn($woundType);
     }
 
     /**
@@ -591,6 +656,69 @@ class FightPropertiesTest extends TestWithMockery
         $armourer->shouldReceive('getLengthOfWeaponOrShield')
             ->with($shieldCode)
             ->andReturn($lengthOfShield);
+    }
+
+    /**
+     * @param Armourer|\Mockery\MockInterface $armourer
+     * @param WeaponlikeCode $weaponlikeCode
+     * @param Strength $strength
+     * @param int $baseOfWounds
+     */
+    private function addWeaponBaseOfWounds(Armourer $armourer, WeaponlikeCode $weaponlikeCode, Strength $strength, $baseOfWounds)
+    {
+        $armourer->shouldReceive('getBaseOfWoundsUsingWeaponlike')
+            ->with($weaponlikeCode, $strength)
+            ->andReturn($baseOfWounds);
+    }
+
+    /**
+     * @param Skills|\Mockery\MockInterface $skills
+     * @param WeaponlikeCode $weaponlikeCode
+     * @param MissingWeaponSkillTable $missingWeaponSkillsTable
+     * @param $fightsWithTwoWeapons
+     * @param $baseOfWoundsMalusFromSkills
+     */
+    private function addBaseOfWoundsMalusFromSkills(
+        Skills $skills,
+        WeaponlikeCode $weaponlikeCode,
+        MissingWeaponSkillTable $missingWeaponSkillsTable,
+        $fightsWithTwoWeapons,
+        $baseOfWoundsMalusFromSkills
+    )
+    {
+        $skills->shouldReceive('getMalusToBaseOfWoundsWithWeaponlike')
+            ->with($weaponlikeCode, $missingWeaponSkillsTable, $fightsWithTwoWeapons)
+            ->andReturn($baseOfWoundsMalusFromSkills);
+    }
+
+    /**
+     * @param Armourer|\Mockery\MockInterface $armourer
+     * @param WeaponlikeCode $weaponlikeCode
+     * @param $holdsByTwoHands
+     * @param int $bonusFromHolding
+     */
+    private function addBaseOfWoundsBonusByHolding(
+        Armourer $armourer,
+        WeaponlikeCode $weaponlikeCode,
+        $holdsByTwoHands,
+        $bonusFromHolding
+    )
+    {
+        $armourer->shouldReceive('getBaseOfWoundsBonusForHolding')
+            ->with($weaponlikeCode, $holdsByTwoHands)
+            ->andReturn($bonusFromHolding);
+    }
+
+    /**
+     * @param CombatActions|\Mockery\MockInterface $combatActions
+     * @param $weaponIsCrushing
+     * @param int $baseOfWoundsModifierFromActions
+     */
+    private function addBaseOfWoundsModifierFromActions(CombatActions $combatActions, $weaponIsCrushing, $baseOfWoundsModifierFromActions)
+    {
+        $combatActions->shouldReceive('getBaseOfWoundsModifier')
+            ->with($weaponIsCrushing)
+            ->andReturn($baseOfWoundsModifierFromActions);
     }
 
     /**
