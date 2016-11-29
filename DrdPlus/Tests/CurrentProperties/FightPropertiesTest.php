@@ -19,8 +19,10 @@ use DrdPlus\Properties\Body\Height;
 use DrdPlus\Properties\Body\Size;
 use DrdPlus\Properties\Combat\Attack;
 use DrdPlus\Properties\Combat\AttackNumber;
+use DrdPlus\Properties\Combat\EncounterRange;
 use DrdPlus\Properties\Combat\FightNumber;
 use DrdPlus\Properties\Combat\LoadingInRounds;
+use DrdPlus\Properties\Derived\Speed;
 use DrdPlus\Skills\Skills;
 use DrdPlus\Tables\Actions\CombatActionsWithWeaponTypeCompatibilityTable;
 use DrdPlus\Tables\Armaments\Armourer;
@@ -50,7 +52,13 @@ class FightPropertiesTest extends TestWithMockery
         $this->addCanUseArmament($armourer, $shieldCode, $strengthForOffhandOnly, $size, true, true);
 
         $strength = Strength::getIt(987);
-        $currentProperties = $this->createCurrentProperties($strength, $size, $strengthForMainHandOnly, $strengthForOffhandOnly);
+        $currentProperties = $this->createCurrentProperties(
+            $strength,
+            $size,
+            $strengthForMainHandOnly,
+            $strengthForOffhandOnly,
+            $speed = $this->mockery(Speed::class)
+        );
         $this->addAgility($currentProperties, Agility::getIt(321));
         $this->addHeight($currentProperties, $this->createHeight(255));
 
@@ -127,6 +135,9 @@ class FightPropertiesTest extends TestWithMockery
         $this->addFightNumberBonusByWeaponlikeLength($armourer, $weaponlikeCode, $weaponLength = 55, $shieldCode, $shieldLength = 66);
         $this->addCombatActionsFightNumber($combatActions, $combatActionsFightNumberModifier = 777);
 
+        // encounter range
+        $this->addEncounterRange($armourer, $weaponlikeCode, $strengthForMainHandOnly, $speed, $encounterRangeValue = 1824);
+
         $fightProperties = new FightProperties(
             $currentProperties,
             $combatActions,
@@ -163,6 +174,8 @@ class FightPropertiesTest extends TestWithMockery
         );
 
         $this->I_can_get_expected_loading_in_rounds($fightProperties, $weaponlikeCode);
+
+        $this->I_can_get_expected_encounter_range($fightProperties, $encounterRangeValue);
 
         $this->I_can_get_expected_fight_number(
             $fightProperties,
@@ -243,6 +256,17 @@ class FightPropertiesTest extends TestWithMockery
         self::assertInstanceOf(LoadingInRounds::class, $loadingInRounds);
         self::assertNotInstanceOf(RangedWeaponCode::class, $weaponlikeCode);
         self::assertSame(0, $loadingInRounds->getValue());
+    }
+
+    /**
+     * @param FightProperties $fightProperties
+     * @param int $encounterRangeValue
+     */
+    private function I_can_get_expected_encounter_range(FightProperties $fightProperties, $encounterRangeValue)
+    {
+        $encounterRange = $fightProperties->getEncounterRange();
+        self::assertInstanceOf(EncounterRange::class, $encounterRange);
+        self::assertSame($encounterRangeValue, $encounterRange->getValue());
     }
 
     /**
@@ -347,13 +371,15 @@ class FightPropertiesTest extends TestWithMockery
      * @param Size $size
      * @param Strength $strengthForMainHandOnly
      * @param Strength $strengthForOffhandOnly
+     * @param Speed $speed
      * @return \Mockery\MockInterface|CurrentProperties
      */
     private function createCurrentProperties(
         Strength $strength,
         Size $size,
         Strength $strengthForMainHandOnly,
-        Strength $strengthForOffhandOnly
+        Strength $strengthForOffhandOnly,
+        Speed $speed = null
     )
     {
         $currentProperties = $this->mockery(CurrentProperties::class);
@@ -365,6 +391,10 @@ class FightPropertiesTest extends TestWithMockery
             ->andReturn($strengthForMainHandOnly);
         $currentProperties->shouldReceive('getStrengthForOffhandOnly')
             ->andReturn($strengthForOffhandOnly);
+        if ($speed !== null) {
+            $currentProperties->shouldReceive('getSpeed')
+                ->andReturn($speed);
+        }
 
         return $currentProperties;
     }
@@ -575,6 +605,26 @@ class FightPropertiesTest extends TestWithMockery
     {
         $combatActions->shouldReceive('getFightNumberModifier')
             ->andReturn($attackNumberModifier);
+    }
+
+    /**
+     * @param Armourer|\Mockery\MockInterface $armourer
+     * @param WeaponlikeCode $weaponlikeCode
+     * @param Strength $strengthForMainHandOnly
+     * @param Speed $speed
+     * @param $encounterRangeValue
+     */
+    private function addEncounterRange(
+        Armourer $armourer,
+        WeaponlikeCode $weaponlikeCode,
+        Strength $strengthForMainHandOnly,
+        Speed $speed,
+        $encounterRangeValue
+    )
+    {
+        $armourer->shouldReceive('getEncounterRangeWithWeaponlike')
+            ->with($weaponlikeCode, $strengthForMainHandOnly, $speed)
+            ->andReturn($encounterRangeValue);
     }
 
     /**

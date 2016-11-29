@@ -568,7 +568,7 @@ class FightProperties extends StrictObject
     }
 
     /**
-     * Note: for melee weapons is loading zero.
+     * Note: for melee weapons the loading is zero.
      *
      * @return LoadingInRounds
      */
@@ -590,7 +590,7 @@ class FightProperties extends StrictObject
     /**
      * Encounter range relates to weapon and strength for bows, speed for throwing weapons and nothing else for
      * crossbows. See PPH page 95 left column.
-     * Also melee weapons have encounter range - calculated from their length parameter.
+     * Melee weapons have encounter range zero.
      * Note about SPEAR: if current weapon for attack is spear for melee @see MeleeWeaponCode::SPEAR then range is zero.
      *
      * @return EncounterRange
