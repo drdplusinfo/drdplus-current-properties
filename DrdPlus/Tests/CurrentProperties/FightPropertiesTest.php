@@ -177,7 +177,7 @@ class FightPropertiesTest extends TestWithMockery
             $weaponlikeCode,
             $this->createWeaponlikeHolding(
                 false, /* does not keep weapon by both hands now */
-                true /* holds weapon by main hands now */
+                true /* holds weapon by main hand */
             ),
             $fightsWithTwoWeapons,
             $shieldCode,
@@ -483,8 +483,8 @@ class FightPropertiesTest extends TestWithMockery
      * @param ArmamentCode $armamentCode
      * @param Strength $strength
      * @param Size $size
-     * @param $canUseArmament
-     * @param $canHoldItByOneHand
+     * @param bool $canUseArmament
+     * @param bool $canHoldItByOneHand
      * @return Armourer
      */
     private function addCanUseArmament(
@@ -503,6 +503,9 @@ class FightPropertiesTest extends TestWithMockery
             $armourer->shouldReceive('canHoldItByOneHand')
                 ->with($armamentCode)
                 ->andReturn($canHoldItByOneHand);
+            $armourer->shouldReceive('canHoldItByTwoHands')
+                ->with($armamentCode)
+                ->andReturn(!$canHoldItByOneHand);
         }
 
         return $armourer;
@@ -1064,7 +1067,7 @@ class FightPropertiesTest extends TestWithMockery
             $weaponlikeCode,
             $this->createWeaponlikeHolding(
                 false, /* does not keep weapon by both hands now */
-                true /* holds weapon by main hands now */
+                true /* holds weapon by main hand */
             ),
             false, // does not fight with two weapons now
             $shieldCode,
@@ -1081,4 +1084,105 @@ class FightPropertiesTest extends TestWithMockery
             [true, true, true, false],
         ];
     }
+
+    /**
+     * @test
+     * @expectedException \DrdPlus\CurrentProperties\Exceptions\CanNotHoldItByTwoHands
+     * @dataProvider provideWeaponOrShieldInvalidTwoHandsHolding
+     * @param bool $fightsWithTwoWeapons
+     * @param bool $holdsByTwoHands
+     * @param bool $canHoldByOneHand
+     */
+    public function I_can_not_create_it_with_two_hands_holding_if_not_possible(
+        $fightsWithTwoWeapons,
+        $holdsByTwoHands,
+        $canHoldByOneHand
+    )
+    {
+        $armourer = $this->createArmourer();
+
+        $weaponlikeCode = $this->createWeapon();
+        $strengthForMainHandOnly = Strength::getIt(123);
+        $size = Size::getIt(456);
+        $this->addCanUseArmament($armourer, $weaponlikeCode, $strengthForMainHandOnly, $size, true, $canHoldByOneHand);
+
+        $shieldCode = ShieldCode::getIt(ShieldCode::WITHOUT_SHIELD);
+        $strengthForOffhandOnly = Strength::getIt(234);
+        $this->addCanUseArmament($armourer, $shieldCode, $strengthForOffhandOnly, $size, true, true);
+
+        $strength = Strength::getIt(698);
+        $bodyArmorCode = BodyArmorCode::getIt(BodyArmorCode::WITHOUT_ARMOR);
+        $this->addCanUseArmament($armourer, $bodyArmorCode, $strength, $size, true);
+        $helmCode = HelmCode::getIt(HelmCode::WITHOUT_HELM);
+        $this->addCanUseArmament($armourer, $helmCode, $strength, $size, true);
+        
+        new FightProperties(
+            $this->createCurrentProperties($strength, $size, $strengthForMainHandOnly, $strengthForOffhandOnly),
+            $this->createCombatActions($combatActionValues = ['foo']),
+            $this->createSkills(),
+            $bodyArmorCode,
+            $helmCode,
+            ProfessionCode::getIt(ProfessionCode::RANGER),
+            $this->createTables($weaponlikeCode, $combatActionValues, $armourer),
+            $weaponlikeCode,
+            $this->createWeaponlikeHolding(
+                $holdsByTwoHands,
+                true /* holds weapon by main hand */
+            ),
+            $fightsWithTwoWeapons,
+            $shieldCode,
+            false // enemy is not faster now
+        );
+    }
+
+    public function provideWeaponOrShieldInvalidTwoHandsHolding()
+    {
+        return [
+            [true, true, false],
+            [false, true, true],
+        ];
+    }
+
+    /**
+     * @test
+     * @expectedException \DrdPlus\CurrentProperties\Exceptions\CanNotHoldItByOneHand
+     */
+    public function I_can_not_create_it_with_one_hand_holding_if_not_possible()
+    {
+        $armourer = $this->createArmourer();
+
+        $weaponlikeCode = $this->createWeapon();
+        $strengthForMainHandOnly = Strength::getIt(123);
+        $size = Size::getIt(456);
+        $this->addCanUseArmament($armourer, $weaponlikeCode, $strengthForMainHandOnly, $size, true, false /* can not hold by one hand */);
+
+        $shieldCode = ShieldCode::getIt(ShieldCode::WITHOUT_SHIELD);
+        $strengthForOffhandOnly = Strength::getIt(234);
+        $this->addCanUseArmament($armourer, $shieldCode, $strengthForOffhandOnly, $size, true, true);
+
+        $strength = Strength::getIt(698);
+        $bodyArmorCode = BodyArmorCode::getIt(BodyArmorCode::WITHOUT_ARMOR);
+        $this->addCanUseArmament($armourer, $bodyArmorCode, $strength, $size, true);
+        $helmCode = HelmCode::getIt(HelmCode::WITHOUT_HELM);
+        $this->addCanUseArmament($armourer, $helmCode, $strength, $size, true);
+
+        new FightProperties(
+            $this->createCurrentProperties($strength, $size, $strengthForMainHandOnly, $strengthForOffhandOnly),
+            $this->createCombatActions($combatActionValues = ['foo']),
+            $this->createSkills(),
+            $bodyArmorCode,
+            $helmCode,
+            ProfessionCode::getIt(ProfessionCode::RANGER),
+            $this->createTables($weaponlikeCode, $combatActionValues, $armourer),
+            $weaponlikeCode,
+            $this->createWeaponlikeHolding(
+                false, // does not hold it by two hands
+                true /* holds weapon by main hand */
+            ),
+            true, // fights with two weapons (does not affect this test)
+            $shieldCode,
+            false // enemy is not faster now
+        );
+    }
+
 }
