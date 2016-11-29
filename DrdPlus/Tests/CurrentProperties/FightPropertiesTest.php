@@ -270,7 +270,7 @@ class FightPropertiesTest extends TestWithMockery
     {
         $fightNumber = $fightProperties->getFightNumber();
         self::assertInstanceOf(FightNumber::class, $fightNumber);
-        self::assertSame($fightNumber, $fightProperties->getFightNumber(), 'Same instance should be given');
+        self::assertSame($fightNumber, $fightProperties->getFightNumber(), 'Expected same instances');
         $expectedFightNumber = (new FightNumber($professionCode, $currentProperties, $currentProperties->getHeight()))
             ->add(
                 $fightNumberMalusFromStrengthForWeapon
@@ -332,7 +332,7 @@ class FightPropertiesTest extends TestWithMockery
     {
         $baseOfWounds = $fightProperties->getBaseOfWounds();
         self::assertInstanceOf(WoundsBonus::class, $baseOfWounds);
-        self::assertSame($baseOfWounds, $fightProperties->getBaseOfWounds(), 'Same instance should be given');
+        self::assertSame($baseOfWounds, $fightProperties->getBaseOfWounds(), 'Expected same instances');
         $expectedBaseOfWoundsValue = $weaponBaseOfWounds + $baseOfWoundsMalusFromSkills + $baseOfWoundsBonusForHolding
             + $baseOfWoundsModifierFromActions;
         self::assertSame($baseOfWounds->getValue(), $expectedBaseOfWoundsValue);
@@ -348,7 +348,7 @@ class FightPropertiesTest extends TestWithMockery
         self::assertInstanceOf(LoadingInRounds::class, $loadingInRounds);
         self::assertNotInstanceOf(RangedWeaponCode::class, $weaponlikeCode);
         self::assertSame(0, $loadingInRounds->getValue());
-        self::assertSame($loadingInRounds, $fightProperties->getLoadingInRounds());
+        self::assertSame($loadingInRounds, $fightProperties->getLoadingInRounds(), 'Expected same instances');
     }
 
     /**
@@ -363,7 +363,7 @@ class FightPropertiesTest extends TestWithMockery
         $encounterRange = $fightProperties->getEncounterRange();
         self::assertInstanceOf(EncounterRange::class, $encounterRange);
         self::assertSame($encounterRangeValue, $encounterRange->getValue());
-        self::assertSame($encounterRange, $fightProperties->getEncounterRange(), 'Same instance expected');
+        self::assertSame($encounterRange, $fightProperties->getEncounterRange(), 'Expected same instances');
     }
 
     /**
@@ -377,7 +377,7 @@ class FightPropertiesTest extends TestWithMockery
         $maximalRange = $fightProperties->getMaximalRange();
         self::assertInstanceOf(MaximalRange::class, $maximalRange);
         self::assertSame($expectedMaximalRange->getValue(), $maximalRange->getValue());
-        self::assertSame($maximalRange, $fightProperties->getMaximalRange(), 'Same instance expected');
+        self::assertSame($maximalRange, $fightProperties->getMaximalRange(), 'Expected same instances');
     }
 
     /**
