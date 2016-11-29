@@ -609,8 +609,7 @@ class FightProperties extends StrictObject
 
     /**
      * Ranged weapons can be used for indirect shooting and those have much longer maximal and still somehow
-     * controllable
-     * (more or less - depends on weapon) range.
+     * controllable (more or less - depends on weapon) range.
      * Others have their maximal (and still controllable) range same as encounter range.
      * See PPH page 104 left column.
      *
