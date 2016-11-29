@@ -30,6 +30,7 @@ use DrdPlus\Skills\Skills;
 use DrdPlus\Tables\Actions\CombatActionsWithWeaponTypeCompatibilityTable;
 use DrdPlus\Tables\Armaments\Armourer;
 use DrdPlus\Tables\Armaments\Partials\WeaponlikeTable;
+use DrdPlus\Tables\Armaments\Shields\MissingShieldSkillTable;
 use DrdPlus\Tables\Armaments\Weapons\MissingWeaponSkillTable;
 use DrdPlus\Tables\Measurements\Distance\Distance;
 use DrdPlus\Tables\Measurements\Wounds\WoundsBonus;
@@ -100,7 +101,8 @@ class FightPropertiesTest extends TestWithMockery
             $baseOfWoundsMalusFromSkills = -12607
         );
         $this->addBaseOfWoundsBonusByHolding($armourer, $weaponlikeCode, false /* not hold by two hands */, $baseOfWoundsBonusForHolding = 748);
-        $tables = $this->createTables($weaponlikeCode, $combatActionValues, $armourer, $missingWeaponSkillsTable);
+        $missingShieldSkillsTable = new MissingShieldSkillTable();
+        $tables = $this->createTables($weaponlikeCode, $combatActionValues, $armourer, $missingWeaponSkillsTable, $missingShieldSkillsTable);
         $this->addWoundsTypeOf($tables, $weaponlikeCode, WoundTypeCode::CUT);
         $this->addBaseOfWoundsModifierFromActions($combatActions, false /* weapon is not crushing */, $baseOfWoundsModifierFromActions = -1357);
 
@@ -144,13 +146,20 @@ class FightPropertiesTest extends TestWithMockery
         // defense number
         $this->addDefenseNumberFromActions($combatActions, $defenseNumberModifierFromActions = -155157);
         $this->addDefenseNumberMalusByStrength($armourer, $weaponlikeCode, $strengthForMainHandOnly, $defenseNumberMalusByStrengthWithWeapon = -518415);
-        $this->addCoverOfWeapon($armourer, $weaponlikeCode, $coverOfWeapon = 6511);
+        $this->addCoverOf($armourer, $weaponlikeCode, $coverOfWeapon = 6511);
         $this->addSkillsMalusToCoverWithWeapon(
             $skills,
             $weaponlikeCode,
             $missingWeaponSkillsTable,
             $fightsWithTwoWeapons,
             $skillsMalusToCoverWithWeapon = -551514
+        );
+        $this->addDefenseNumberMalusByStrength($armourer, $shieldCode, $strengthForOffhandOnly, $defenseNumberMalusByStrengthWithShield = -1640);
+        $this->addCoverOf($armourer, $shieldCode, $coverOfShield = 712479);
+        $this->addSkillsMalusToCoverWithShield(
+            $skills,
+            $missingShieldSkillsTable,
+            $skillsMalusToCoverWithShield = -71810482
         );
 
         $fightProperties = new FightProperties(
@@ -216,7 +225,10 @@ class FightPropertiesTest extends TestWithMockery
             $enemyIsFaster,
             $defenseNumberMalusByStrengthWithWeapon,
             $coverOfWeapon,
-            $skillsMalusToCoverWithWeapon
+            $skillsMalusToCoverWithWeapon,
+            $defenseNumberMalusByStrengthWithShield,
+            $coverOfShield,
+            $skillsMalusToCoverWithShield
         );
     }
 
@@ -365,6 +377,9 @@ class FightPropertiesTest extends TestWithMockery
      * @param int $defenseNumberMalusByStrengthWithWeapon
      * @param int $coverOfWeapon
      * @param int $skillsMalusToCoverWithWeapon
+     * @param int $defenseNumberMalusByStrengthWithShield
+     * @param int $coverOfShield
+     * @param int $skillsMalusToCoverWithShield
      */
     private function I_can_get_defense_number(
         FightProperties $fightProperties,
@@ -373,7 +388,10 @@ class FightPropertiesTest extends TestWithMockery
         $enemyIsFaster,
         $defenseNumberMalusByStrengthWithWeapon,
         $coverOfWeapon,
-        $skillsMalusToCoverWithWeapon
+        $skillsMalusToCoverWithWeapon,
+        $defenseNumberMalusByStrengthWithShield,
+        $coverOfShield,
+        $skillsMalusToCoverWithShield
     )
     {
         self::assertFalse($enemyIsFaster, 'Test of defense number against faster enemy is not created yet. Do it.');
@@ -381,6 +399,7 @@ class FightPropertiesTest extends TestWithMockery
         $expectedDefenseNumber = (new DefenseNumber($currentProperties->getAgility()))
             ->add($defenseNumberModifierFromCombatActions);
         self::assertSame($expectedDefenseNumber->getValue(), $fightProperties->getDefenseNumber()->getValue());
+
         $expectedDefenseNumberWithWeapon = $expectedDefenseNumber->add(
             $defenseNumberMalusByStrengthWithWeapon
             + $coverOfWeapon
@@ -389,6 +408,16 @@ class FightPropertiesTest extends TestWithMockery
         self::assertSame(
             $expectedDefenseNumberWithWeapon->getValue(),
             $fightProperties->getDefenseNumberWithWeaponlike()->getValue()
+        );
+
+        $expectedDefenseNumberWithShield = $expectedDefenseNumber->add(
+            $defenseNumberMalusByStrengthWithShield
+            + $coverOfShield
+            + $skillsMalusToCoverWithShield
+        );
+        self::assertSame(
+            $expectedDefenseNumberWithShield->getValue(),
+            $fightProperties->getDefenseNumberWithShield()->getValue()
         );
     }
 
@@ -502,13 +531,15 @@ class FightPropertiesTest extends TestWithMockery
      * @param array $possibleActions
      * @param Armourer $armourer
      * @param MissingWeaponSkillTable $missingWeaponSkillsTable
+     * @param MissingShieldSkillTable $missingShieldSkillsTable
      * @return \Mockery\MockInterface|Tables
      */
     private function createTables(
         WeaponlikeCode $weaponlikeCode,
         array $possibleActions,
         Armourer $armourer,
-        MissingWeaponSkillTable $missingWeaponSkillsTable = null
+        MissingWeaponSkillTable $missingWeaponSkillsTable = null,
+        MissingShieldSkillTable $missingShieldSkillsTable = null
     )
     {
         $tables = $this->mockery(Tables::class);
@@ -522,6 +553,10 @@ class FightPropertiesTest extends TestWithMockery
         if ($missingWeaponSkillsTable) {
             $tables->shouldReceive('getMissingWeaponSkillTable')
                 ->andReturn($missingWeaponSkillsTable);
+        }
+        if ($missingShieldSkillsTable) {
+            $tables->shouldReceive('getMissingShieldSkillTable')
+                ->andReturn($missingShieldSkillsTable);
         }
         $tables->shouldDeferMissing();
 
@@ -736,7 +771,7 @@ class FightPropertiesTest extends TestWithMockery
      * @param WeaponlikeCode $weaponlikeCode
      * @param int $coverOfWeapon
      */
-    private function addCoverOfWeapon(Armourer $armourer, WeaponlikeCode $weaponlikeCode, $coverOfWeapon)
+    private function addCoverOf(Armourer $armourer, WeaponlikeCode $weaponlikeCode, $coverOfWeapon)
     {
         $armourer->shouldReceive('getCoverOfWeaponOrShield')
             ->with($weaponlikeCode)
@@ -761,6 +796,22 @@ class FightPropertiesTest extends TestWithMockery
         $skills->shouldReceive('getMalusToCoverWithWeapon')
             ->with($weaponlikeCode, $missingWeaponSkillTable, $fightsWithTwoWeapons)
             ->andReturn($skillsMalusToCoverWithWeapon);
+    }
+
+    /**
+     * @param Skills|\Mockery\MockInterface $skills
+     * @param MissingShieldSkillTable $missingShieldSkillTable
+     * @param int $skillsMalusToCoverWithShield
+     */
+    private function addSkillsMalusToCoverWithShield(
+        Skills $skills,
+        MissingShieldSkillTable $missingShieldSkillTable,
+        $skillsMalusToCoverWithShield
+    )
+    {
+        $skills->shouldReceive('getMalusToCoverWithShield')
+            ->with($missingShieldSkillTable)
+            ->andReturn($skillsMalusToCoverWithShield);
     }
 
     /**
