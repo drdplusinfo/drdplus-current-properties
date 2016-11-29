@@ -372,8 +372,10 @@ class FightPropertiesTest extends TestWithMockery
     {
         self::assertNotInstanceOf(RangedWeaponCode::class, $weaponlikeCode);
         $expectedMaximalRange = MaximalRange::createForMeleeWeapon($fightProperties->getEncounterRange());
-        self::assertInstanceOf(MaximalRange::class, $fightProperties->getMaximalRange());
-        self::assertSame($expectedMaximalRange->getValue(), $fightProperties->getMaximalRange()->getValue());
+        $maximalRange = $fightProperties->getMaximalRange();
+        self::assertInstanceOf(MaximalRange::class, $maximalRange);
+        self::assertSame($expectedMaximalRange->getValue(), $maximalRange->getValue());
+        self::assertSame($maximalRange, $fightProperties->getMaximalRange(), 'Same instance expected');
     }
 
     /**
@@ -447,8 +449,10 @@ class FightPropertiesTest extends TestWithMockery
     private function I_can_get_moved_distance(FightProperties $fightProperties, $combatActionsSpeedModifier)
     {
         self::assertSame(0, $combatActionsSpeedModifier, 'Non-zero movement is not tested yet. Do it.');
-        self::assertInstanceOf(Distance::class, $fightProperties->getMovedDistance());
-        self::assertSame(0.0, $fightProperties->getMovedDistance()->getValue());
+        $movedDistance = $fightProperties->getMovedDistance();
+        self::assertInstanceOf(Distance::class, $movedDistance);
+        self::assertSame(0.0, $movedDistance->getValue());
+        self::assertSame($movedDistance, $fightProperties->getMovedDistance(), 'Same instances expected');
     }
 
     /**

@@ -75,6 +75,8 @@ class FightProperties extends StrictObject
     private $defenseNumberWithShield;
     /** @var Distance */
     private $movedDistance;
+    /** @var MaximalRange */
+    private $maximalRange;
 
     /**
      * Even shield can be used as a weapon, because it is @see WeaponlikeCode
@@ -619,11 +621,15 @@ class FightProperties extends StrictObject
      */
     public function getMaximalRange()
     {
-        if ($this->weaponlike instanceof RangedWeaponCode) {
-            return MaximalRange::createForRangedWeapon($this->getEncounterRange());
+        if ($this->maximalRange === null) {
+            if ($this->weaponlike instanceof RangedWeaponCode) {
+                $this->maximalRange = MaximalRange::createForRangedWeapon($this->getEncounterRange());
+            } else {
+                $this->maximalRange = MaximalRange::createForMeleeWeapon($this->getEncounterRange()); // no change for melee weapons
+            }
         }
 
-        return MaximalRange::createForMeleeWeapon($this->getEncounterRange()); // no change for melee weapons
+        return $this->maximalRange;
     }
 
     // DEFENSE
