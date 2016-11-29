@@ -163,6 +163,9 @@ class FightPropertiesTest extends TestWithMockery
             $skillsMalusToCoverWithShield = -71810482
         );
 
+        // moved distance
+        $this->addActionsSpeedModifier($combatActions, $combatActionsSpeedModifier = 0);
+
         $fightProperties = new FightProperties(
             $currentProperties,
             $combatActions,
@@ -232,6 +235,8 @@ class FightPropertiesTest extends TestWithMockery
             $skillsMalusToCoverWithShield,
             $size
         );
+
+        $this->I_can_get_moved_distance($fightProperties, $combatActionsSpeedModifier);
     }
 
     /**
@@ -433,6 +438,17 @@ class FightPropertiesTest extends TestWithMockery
         $defenseNumberAgainstShootingWithShield = $fightProperties->getDefenseNumberAgainstShootingWithShield();
         self::assertInstanceOf(DefenseNumberAgainstShooting::class, $defenseNumberAgainstShootingWithShield);
         self::assertSame($expectedDefenseNumberAgainstShootingWithShield->getValue(), $defenseNumberAgainstShootingWithShield->getValue());
+    }
+
+    /**
+     * @param FightProperties $fightProperties
+     * @param int $combatActionsSpeedModifier
+     */
+    private function I_can_get_moved_distance(FightProperties $fightProperties, $combatActionsSpeedModifier)
+    {
+        self::assertSame(0, $combatActionsSpeedModifier, 'Non-zero movement is not tested yet. Do it.');
+        self::assertInstanceOf(Distance::class, $fightProperties->getMovedDistance());
+        self::assertSame(0.0, $fightProperties->getMovedDistance()->getValue());
     }
 
     /**
@@ -986,6 +1002,16 @@ class FightPropertiesTest extends TestWithMockery
         $combatActions->shouldReceive('getBaseOfWoundsModifier')
             ->with($weaponIsCrushing)
             ->andReturn($baseOfWoundsModifierFromActions);
+    }
+
+    /**
+     * @param CombatActions|\Mockery\MockInterface $combatActions
+     * @param int $speedModifier
+     */
+    private function addActionsSpeedModifier(CombatActions $combatActions, $speedModifier)
+    {
+        $combatActions->shouldReceive('getSpeedModifier')
+            ->andReturn($speedModifier);
     }
 
     /**
