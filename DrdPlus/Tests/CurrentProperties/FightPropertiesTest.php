@@ -4,6 +4,7 @@ namespace DrdPlus\Tests\CurrentProperties;
 use DrdPlus\Codes\Armaments\ArmamentCode;
 use DrdPlus\Codes\Armaments\BodyArmorCode;
 use DrdPlus\Codes\Armaments\HelmCode;
+use DrdPlus\Codes\Armaments\RangedWeaponCode;
 use DrdPlus\Codes\Armaments\ShieldCode;
 use DrdPlus\Codes\Armaments\WeaponlikeCode;
 use DrdPlus\Codes\ItemHoldingCode;
@@ -19,6 +20,7 @@ use DrdPlus\Properties\Body\Size;
 use DrdPlus\Properties\Combat\Attack;
 use DrdPlus\Properties\Combat\AttackNumber;
 use DrdPlus\Properties\Combat\FightNumber;
+use DrdPlus\Properties\Combat\LoadingInRounds;
 use DrdPlus\Skills\Skills;
 use DrdPlus\Tables\Actions\CombatActionsWithWeaponTypeCompatibilityTable;
 use DrdPlus\Tables\Armaments\Armourer;
@@ -160,6 +162,8 @@ class FightPropertiesTest extends TestWithMockery
             $baseOfWoundsModifierFromActions
         );
 
+        $this->I_can_get_expected_loading_in_rounds($fightProperties, $weaponlikeCode);
+
         $this->I_can_get_expected_fight_number(
             $fightProperties,
             $professionCode,
@@ -227,6 +231,18 @@ class FightPropertiesTest extends TestWithMockery
         $expectedBaseOfWoundsValue = $weaponBaseOfWounds + $baseOfWoundsMalusFromSkills + $baseOfWoundsBonusForHolding
             + $baseOfWoundsModifierFromActions;
         self::assertSame($baseOfWounds->getValue(), $expectedBaseOfWoundsValue);
+    }
+
+    /**
+     * @param FightProperties $fightProperties
+     * @param WeaponlikeCode $weaponlikeCode
+     */
+    private function I_can_get_expected_loading_in_rounds(FightProperties $fightProperties, WeaponlikeCode $weaponlikeCode)
+    {
+        $loadingInRounds = $fightProperties->getLoadingInRounds();
+        self::assertInstanceOf(LoadingInRounds::class, $loadingInRounds);
+        self::assertNotInstanceOf(RangedWeaponCode::class, $weaponlikeCode);
+        self::assertSame(0, $loadingInRounds->getValue());
     }
 
     /**
