@@ -69,6 +69,8 @@ class FightProperties extends StrictObject
     private $defenseNumber;
     /** @var DefenseNumberAgainstShooting */
     private $defenseNumberAgainstShooting;
+    /** @var DefenseNumberAgainstShooting */
+    private $defenseNumberAgainstShootingWithShield;
     /** @var DefenseNumber */
     private $defenseNumberWithShield;
     /** @var Distance */
@@ -796,16 +798,16 @@ class FightProperties extends StrictObject
      *
      * @return DefenseNumberAgainstShooting
      */
-    public function getDefenseNumberWithShieldAgainstShooting()
+    public function getDefenseNumberAgainstShootingWithShield()
     {
-        if ($this->defenseNumberAgainstShooting === null) {
-            $this->defenseNumberAgainstShooting = new DefenseNumberAgainstShooting(
+        if ($this->defenseNumberAgainstShootingWithShield === null) {
+            $this->defenseNumberAgainstShootingWithShield = new DefenseNumberAgainstShooting(
                 $this->getDefenseNumberWithShield(),
                 $this->currentProperties->getSize()
             );
         }
 
-        return $this->defenseNumberAgainstShooting;
+        return $this->defenseNumberAgainstShootingWithShield;
     }
 
     // MOVEMENT

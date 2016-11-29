@@ -21,6 +21,7 @@ use DrdPlus\Properties\Body\Size;
 use DrdPlus\Properties\Combat\Attack;
 use DrdPlus\Properties\Combat\AttackNumber;
 use DrdPlus\Properties\Combat\DefenseNumber;
+use DrdPlus\Properties\Combat\DefenseNumberAgainstShooting;
 use DrdPlus\Properties\Combat\EncounterRange;
 use DrdPlus\Properties\Combat\FightNumber;
 use DrdPlus\Properties\Combat\LoadingInRounds;
@@ -228,7 +229,8 @@ class FightPropertiesTest extends TestWithMockery
             $skillsMalusToCoverWithWeapon,
             $defenseNumberMalusByStrengthWithShield,
             $coverOfShield,
-            $skillsMalusToCoverWithShield
+            $skillsMalusToCoverWithShield,
+            $size
         );
     }
 
@@ -380,6 +382,7 @@ class FightPropertiesTest extends TestWithMockery
      * @param int $defenseNumberMalusByStrengthWithShield
      * @param int $coverOfShield
      * @param int $skillsMalusToCoverWithShield
+     * @param Size $size
      */
     private function I_can_get_defense_number(
         FightProperties $fightProperties,
@@ -391,7 +394,8 @@ class FightPropertiesTest extends TestWithMockery
         $skillsMalusToCoverWithWeapon,
         $defenseNumberMalusByStrengthWithShield,
         $coverOfShield,
-        $skillsMalusToCoverWithShield
+        $skillsMalusToCoverWithShield,
+        Size $size
     )
     {
         self::assertFalse($enemyIsFaster, 'Test of defense number against faster enemy is not created yet. Do it.');
@@ -419,6 +423,16 @@ class FightPropertiesTest extends TestWithMockery
             $expectedDefenseNumberWithShield->getValue(),
             $fightProperties->getDefenseNumberWithShield()->getValue()
         );
+
+        $expectedDefenseNumberAgainstShooting = new DefenseNumberAgainstShooting($expectedDefenseNumber, $size);
+        $defenseNumberAgainstShooting = $fightProperties->getDefenseNumberAgainstShooting();
+        self::assertInstanceOf(DefenseNumberAgainstShooting::class, $defenseNumberAgainstShooting);
+        self::assertSame($defenseNumberAgainstShooting->getValue(), $expectedDefenseNumberAgainstShooting->getValue());
+
+        $expectedDefenseNumberAgainstShootingWithShield = new DefenseNumberAgainstShooting($expectedDefenseNumberWithShield, $size);
+        $defenseNumberAgainstShootingWithShield = $fightProperties->getDefenseNumberAgainstShootingWithShield();
+        self::assertInstanceOf(DefenseNumberAgainstShooting::class, $defenseNumberAgainstShootingWithShield);
+        self::assertSame($expectedDefenseNumberAgainstShootingWithShield->getValue(), $defenseNumberAgainstShootingWithShield->getValue());
     }
 
     /**
