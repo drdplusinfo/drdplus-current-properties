@@ -180,7 +180,7 @@ class FightProperties extends StrictObject
     {
         if ($this->fightsWithTwoWeapons && $this->weaponlikeHolding->holdsByTwoHands()) {
             throw new Exceptions\CanNotHoldItByTwoHands(
-                "Can not hold weapon {$this->weaponlike} by two hands when using two weapons"
+                "Can not hold weapon '{$this->weaponlike}' by two hands when using two weapons"
             );
         }
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
@@ -188,7 +188,7 @@ class FightProperties extends StrictObject
             && !$this->tables->getArmourer()->canHoldItByTwoHands($this->weaponlike)
         ) {
             throw new Exceptions\CanNotHoldItByTwoHands(
-                "You can not hold {$this->weaponlike} by two hands, despite your claim {$this->weaponlikeHolding}"
+                "You can not hold '{$this->weaponlike}' by '{$this->weaponlikeHolding}'"
             );
         }
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
@@ -196,7 +196,7 @@ class FightProperties extends StrictObject
             && !$this->tables->getArmourer()->canHoldItByOneHand($this->weaponlike)
         ) {
             throw new Exceptions\CanNotHoldItByOneHand(
-                "You can not hold {$this->weaponlike} by single hand, despite your claim {$this->weaponlikeHolding}"
+                "You can not hold '{$this->weaponlike}' by '{$this->weaponlikeHolding}'"
             );
         }
     }
@@ -319,8 +319,11 @@ class FightProperties extends StrictObject
             return ItemHoldingCode::getIt(ItemHoldingCode::MAIN_HAND);
         }
         if ($this->weaponlikeHolding->holdsByTwoHands()) {
+            if ($this->shield->isUnarmed()) {
+                return ItemHoldingCode::getIt(ItemHoldingCode::OFFHAND); // does not matter for no shield in fact
+            }
             throw new Exceptions\NoHandLeftForShield(
-                "Can not give holding to a shield when holding {$this->weaponlike} like {$this->weaponlikeHolding}"
+                "Can not hold {$this->shield} when holding {$this->weaponlike} like {$this->weaponlikeHolding}"
             );
         }
         throw new Exceptions\UnknownWeaponOrShieldHolding(

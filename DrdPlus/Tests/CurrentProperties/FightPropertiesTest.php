@@ -42,20 +42,27 @@ class FightPropertiesTest extends TestWithMockery
 {
     /**
      * @test
-     * @dataProvider provideEnemyRelativeSpeed
+     * @dataProvider provideUsageCombinations
      * @param bool $enemyIsFasterThanYou
+     * @param bool $holdWeaponByTwoHands
+     * @param bool $weaponIsTwoHandedOnly
      */
-    public function I_can_use_it($enemyIsFasterThanYou)
+    public function I_can_use_it($enemyIsFasterThanYou, $holdWeaponByTwoHands, $weaponIsTwoHandedOnly)
     {
         $armourer = $this->createArmourer();
 
         $weaponlikeCode = $this->createWeapon(false /* not shooting */);
         $strengthForMainHandOnly = Strength::getIt(123);
+        $strengthForWeapon = $holdWeaponByTwoHands && !$weaponIsTwoHandedOnly
+            ? $strengthForMainHandOnly->add(2)
+            : $strengthForMainHandOnly;
         $size = Size::getIt(456);
-        $this->addCanUseArmament($armourer, $weaponlikeCode, $strengthForMainHandOnly, $size, true, true);
+        $this->addCanUseArmament($armourer, $weaponlikeCode, $strengthForWeapon, $size, true, true, true, $weaponIsTwoHandedOnly);
 
         $strengthForOffhandOnly = Strength::getIt(234);
-        $shieldCode = $this->createShieldCode();
+        $shieldCode = $holdWeaponByTwoHands
+            ? ShieldCode::getIt(ShieldCode::WITHOUT_SHIELD)
+            : ShieldCode::getIt(ShieldCode::HEAVY_SHIELD);
         $this->addCanUseArmament($armourer, $shieldCode, $strengthForOffhandOnly, $size, true, true);
 
         $strength = Strength::getIt(987);
@@ -81,7 +88,7 @@ class FightPropertiesTest extends TestWithMockery
         $this->addAttackNumberMalusByStrengthWithWeaponlike(
             $armourer,
             $weaponlikeCode,
-            $strengthForMainHandOnly,
+            $strengthForWeapon,
             $attackNumberMalusByStrengthWithWeapon = 442271
         );
         $this->addMalusToAttackNumberFromSkillsWithWeaponlike(
@@ -95,7 +102,7 @@ class FightPropertiesTest extends TestWithMockery
         $this->addCombatActionsAttackNumber($combatActions, $combatActionsAttackNumberModifier = 8171);
 
         // base of wounds
-        $this->addWeaponBaseOfWounds($armourer, $weaponlikeCode, $strengthForMainHandOnly, $weaponBaseOfWounds = 91967);
+        $this->addWeaponBaseOfWounds($armourer, $weaponlikeCode, $strengthForWeapon, $weaponBaseOfWounds = 91967);
         $this->addBaseOfWoundsMalusFromSkills(
             $skills,
             $weaponlikeCode,
@@ -103,7 +110,7 @@ class FightPropertiesTest extends TestWithMockery
             false, // does not fight with two weapons
             $baseOfWoundsMalusFromSkills = -12607
         );
-        $this->addBaseOfWoundsBonusByHolding($armourer, $weaponlikeCode, false /* not hold by two hands */, $baseOfWoundsBonusForHolding = 748);
+        $this->addBaseOfWoundsBonusByHolding($armourer, $weaponlikeCode, $holdWeaponByTwoHands, $baseOfWoundsBonusForHolding = 748);
         $missingShieldSkillsTable = new MissingShieldSkillTable();
         $tables = $this->createTables($weaponlikeCode, $combatActionValues, $armourer, $missingWeaponSkillsTable, $missingShieldSkillsTable);
         $this->addWoundsTypeOf($tables, $weaponlikeCode, WoundTypeCode::CUT);
@@ -113,7 +120,7 @@ class FightPropertiesTest extends TestWithMockery
         $this->addFightNumberMalusByStrengthWithWeaponOrShield(
             $armourer,
             $weaponlikeCode,
-            $strengthForMainHandOnly,
+            $strengthForWeapon,
             $fightNumberMalusByStrengthWithWeapon = 45
         );
         $this->addFightNumberMalusByStrengthWithWeaponOrShield(
@@ -144,11 +151,11 @@ class FightPropertiesTest extends TestWithMockery
         $this->addCombatActionsFightNumber($combatActions, $combatActionsFightNumberModifier = 777);
 
         // encounter range
-        $this->addEncounterRange($armourer, $weaponlikeCode, $strengthForMainHandOnly, $speed, $encounterRangeValue = 1824);
+        $this->addEncounterRange($armourer, $weaponlikeCode, $strengthForWeapon, $speed, $encounterRangeValue = 1824);
 
         // defense number
         $this->addDefenseNumberFromActions($combatActions, $enemyIsFasterThanYou, $defenseNumberModifierFromActions = -155157);
-        $this->addDefenseNumberMalusByStrength($armourer, $weaponlikeCode, $strengthForMainHandOnly, $defenseNumberMalusByStrengthWithWeapon = -518415);
+        $this->addDefenseNumberMalusByStrength($armourer, $weaponlikeCode, $strengthForWeapon, $defenseNumberMalusByStrengthWithWeapon = -518415);
         $this->addCoverOf($armourer, $weaponlikeCode, $coverOfWeapon = 6511);
         $this->addSkillsMalusToCoverWithWeapon(
             $skills,
@@ -177,11 +184,9 @@ class FightPropertiesTest extends TestWithMockery
             $professionCode = ProfessionCode::getIt(ProfessionCode::FIGHTER),
             $tables,
             $weaponlikeCode,
-            $this->createWeaponlikeHolding(
-                false, /* does not keep weapon by both hands now */
-                true, /* holds weapon by main hand */
-                false /* does not hold weapon by offhand */
-            ),
+            $holdWeaponByTwoHands
+                ? ItemHoldingCode::getIt(ItemHoldingCode::TWO_HANDS)
+                : ItemHoldingCode::getIt(ItemHoldingCode::MAIN_HAND),
             $fightsWithTwoWeapons,
             $shieldCode,
             $enemyIsFasterThanYou
@@ -287,11 +292,13 @@ class FightPropertiesTest extends TestWithMockery
         self::assertSame($expectedFightNumber->getValue(), $fightNumber->getValue());
     }
 
-    public function provideEnemyRelativeSpeed()
+    public function provideUsageCombinations()
     {
+        // enemy is faster than you, holds weapon by two hands, weapon is two handed only
         return [
-            [true],
-            [false],
+            [true, false, false],
+            [false, true, false],
+            [false, true, true],
         ];
     }
 
@@ -488,32 +495,48 @@ class FightPropertiesTest extends TestWithMockery
     /**
      * @param Armourer|\Mockery\MockInterface $armourer
      * @param ArmamentCode $armamentCode
-     * @param Strength $strength
+     * @param Strength $expectedStrength
      * @param Size $size
      * @param bool $canUseArmament
      * @param bool $canHoldItByOneHand
+     * @param bool $canHoldItByTwoHands
+     * @param bool $isTwoHandedOnly
      * @return Armourer
      */
     private function addCanUseArmament(
         Armourer $armourer,
         ArmamentCode $armamentCode,
-        Strength $strength,
+        Strength $expectedStrength,
         Size $size,
         $canUseArmament,
-        $canHoldItByOneHand = null
+        $canHoldItByOneHand = true,
+        $canHoldItByTwoHands = true,
+        $isTwoHandedOnly = false
     )
     {
+        /** @noinspection PhpUnusedParameterInspection */
         $armourer->shouldReceive('canUseArmament')
-            ->with($armamentCode, $strength, $size)
-            ->andReturn($canUseArmament);
-        if ($canHoldItByOneHand !== null) {
-            $armourer->shouldReceive('canHoldItByOneHand')
-                ->with($armamentCode)
-                ->andReturn($canHoldItByOneHand);
-            $armourer->shouldReceive('canHoldItByTwoHands')
-                ->with($armamentCode)
-                ->andReturn(!$canHoldItByOneHand);
-        }
+            ->with($armamentCode, \Mockery::type(Strength::class), $size)
+            ->andReturnUsing(
+                function (ArmamentCode $armamentCode, Strength $strength, Size $size) use ($expectedStrength, $canUseArmament) {
+                    self::assertSame(
+                        $expectedStrength->getValue(),
+                        $strength->getValue(),
+                        "Expected strength {$expectedStrength->getValue()}, got {$strength->getValue()}"
+                    );
+
+                    return $canUseArmament;
+                }
+            );
+        $armourer->shouldReceive('canHoldItByOneHand')
+            ->with($armamentCode)
+            ->andReturn($canHoldItByOneHand);
+        $armourer->shouldReceive('canHoldItByTwoHands')
+            ->with($armamentCode)
+            ->andReturn($canHoldItByTwoHands);
+        $armourer->shouldReceive('isTwoHandedOnly')
+            ->with($armamentCode)
+            ->andReturn($isTwoHandedOnly);
 
         return $armourer;
     }
@@ -696,20 +719,27 @@ class FightPropertiesTest extends TestWithMockery
     /**
      * @see FightProperties::getAttackNumberModifier
      * @param Armourer|\Mockery\MockInterface $armourer
-     * @param WeaponlikeCode $expectedWeaponlikeCode
+     * @param WeaponlikeCode $weaponlikeCode
      * @param Strength $expectedStrength
      * @param int $attackNumberMalus
      */
     private function addAttackNumberMalusByStrengthWithWeaponlike(
         Armourer $armourer,
-        WeaponlikeCode $expectedWeaponlikeCode,
+        WeaponlikeCode $weaponlikeCode,
         Strength $expectedStrength,
         $attackNumberMalus
     )
     {
+        /** @noinspection PhpUnusedParameterInspection */
         $armourer->shouldReceive('getAttackNumberMalusByStrengthWithWeaponlike')
-            ->with($expectedWeaponlikeCode, $expectedStrength)
-            ->andReturn($attackNumberMalus);
+            ->with($weaponlikeCode, \Mockery::type(Strength::class))
+            ->andReturnUsing(
+                function (WeaponlikeCode $weaponlikeCode, Strength $strength) use ($attackNumberMalus, $expectedStrength) {
+                    self::assertSame($expectedStrength->getValue(), $strength->getValue());
+
+                    return $attackNumberMalus;
+                }
+            );
     }
 
     /**
@@ -768,21 +798,29 @@ class FightPropertiesTest extends TestWithMockery
     /**
      * @param Armourer|\Mockery\MockInterface $armourer
      * @param WeaponlikeCode $weaponlikeCode
-     * @param Strength $strengthForMainHandOnly
+     * @param Strength $expectedStrength
      * @param Speed $speed
      * @param $encounterRangeValue
      */
     private function addEncounterRange(
         Armourer $armourer,
         WeaponlikeCode $weaponlikeCode,
-        Strength $strengthForMainHandOnly,
+        Strength $expectedStrength,
         Speed $speed,
         $encounterRangeValue
     )
     {
+        /** @noinspection PhpUnusedParameterInspection */
         $armourer->shouldReceive('getEncounterRangeWithWeaponlike')
-            ->with($weaponlikeCode, $strengthForMainHandOnly, $speed)
-            ->andReturn($encounterRangeValue);
+            ->with($weaponlikeCode, \Mockery::type(Strength::class), $speed)
+            ->andReturnUsing(
+                function (WeaponlikeCode $weaponlikeCode, Strength $strength, Speed $speed)
+                use ($encounterRangeValue, $expectedStrength) {
+                    self::assertSame($expectedStrength->getValue(), $strength->getValue());
+
+                    return $encounterRangeValue;
+                }
+            );
     }
 
     /**
@@ -802,19 +840,26 @@ class FightPropertiesTest extends TestWithMockery
     /**
      * @param Armourer|\Mockery\MockInterface $armourer
      * @param WeaponlikeCode $weaponlikeCode
-     * @param Strength $strengthForMainHandOnly
+     * @param Strength $expectedStrength
      * @param int $defenseNumberMalus
      */
     private function addDefenseNumberMalusByStrength(
         Armourer $armourer,
         WeaponlikeCode $weaponlikeCode,
-        Strength $strengthForMainHandOnly,
+        Strength $expectedStrength,
         $defenseNumberMalus
     )
     {
+        /** @noinspection PhpUnusedParameterInspection */
         $armourer->shouldReceive('getDefenseNumberMalusByStrengthWithWeaponOrShield')
-            ->with($weaponlikeCode, $strengthForMainHandOnly)
-            ->andReturn($defenseNumberMalus);
+            ->with($weaponlikeCode, \Mockery::type(Strength::class))
+            ->andReturnUsing(
+                function (WeaponlikeCode $weaponlikeCode, Strength $strength) use ($defenseNumberMalus, $expectedStrength) {
+                    self::assertSame($expectedStrength->getValue(), $strength->getValue());
+
+                    return $defenseNumberMalus;
+                }
+            );
     }
 
     /**
@@ -879,9 +924,17 @@ class FightPropertiesTest extends TestWithMockery
         $fightNumberMalusByStrengthWithWeapon
     )
     {
+        /** @noinspection PhpUnusedParameterInspection */
         $armourer->shouldReceive('getFightNumberMalusByStrengthWithWeaponOrShield')
-            ->with($expectedWeaponlikeCode, $expectedStrength)
-            ->andReturn($fightNumberMalusByStrengthWithWeapon);
+            ->with($expectedWeaponlikeCode, \Mockery::type(Strength::class))
+            ->andReturnUsing(
+                function (WeaponlikeCode $expectedWeaponlikeCode, Strength $strength)
+                use ($fightNumberMalusByStrengthWithWeapon, $expectedStrength) {
+                    self::assertSame($expectedStrength->getValue(), $strength->getValue());
+
+                    return $fightNumberMalusByStrengthWithWeapon;
+                }
+            );
     }
 
     /**
@@ -965,14 +1018,21 @@ class FightPropertiesTest extends TestWithMockery
     /**
      * @param Armourer|\Mockery\MockInterface $armourer
      * @param WeaponlikeCode $weaponlikeCode
-     * @param Strength $strength
+     * @param Strength $expectedStrength
      * @param int $baseOfWounds
      */
-    private function addWeaponBaseOfWounds(Armourer $armourer, WeaponlikeCode $weaponlikeCode, Strength $strength, $baseOfWounds)
+    private function addWeaponBaseOfWounds(Armourer $armourer, WeaponlikeCode $weaponlikeCode, Strength $expectedStrength, $baseOfWounds)
     {
+        /** @noinspection PhpUnusedParameterInspection */
         $armourer->shouldReceive('getBaseOfWoundsUsingWeaponlike')
-            ->with($weaponlikeCode, $strength)
-            ->andReturn($baseOfWounds);
+            ->with($weaponlikeCode, \Mockery::type(Strength::class))
+            ->andReturnUsing(
+                function (WeaponlikeCode $weaponlikeCode, Strength $strength) use ($baseOfWounds, $expectedStrength) {
+                    self::assertSame($expectedStrength->getValue(), $strength->getValue());
+
+                    return $baseOfWounds;
+                }
+            );
     }
 
     /**
@@ -1118,8 +1178,11 @@ class FightPropertiesTest extends TestWithMockery
 
         $weaponlikeCode = $this->createWeapon();
         $strengthForMainHandOnly = Strength::getIt(123);
+        $strengthForWeapon = $holdsByTwoHands && $canHoldByOneHand
+            ? $strengthForMainHandOnly->add(2)
+            : $strengthForMainHandOnly;
         $size = Size::getIt(456);
-        $this->addCanUseArmament($armourer, $weaponlikeCode, $strengthForMainHandOnly, $size, true, $canHoldByOneHand);
+        $this->addCanUseArmament($armourer, $weaponlikeCode, $strengthForWeapon, $size, true, $canHoldByOneHand, !$canHoldByOneHand);
 
         $shieldCode = ShieldCode::getIt(ShieldCode::WITHOUT_SHIELD);
         $strengthForOffhandOnly = Strength::getIt(234);
