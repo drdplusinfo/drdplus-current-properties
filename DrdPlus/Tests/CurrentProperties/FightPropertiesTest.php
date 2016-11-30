@@ -42,8 +42,10 @@ class FightPropertiesTest extends TestWithMockery
 {
     /**
      * @test
+     * @dataProvider provideEnemyRelativeSpeed
+     * @param bool $enemyIsFasterThanYou
      */
-    public function I_can_use_it()
+    public function I_can_use_it($enemyIsFasterThanYou)
     {
         $armourer = $this->createArmourer();
 
@@ -145,7 +147,7 @@ class FightPropertiesTest extends TestWithMockery
         $this->addEncounterRange($armourer, $weaponlikeCode, $strengthForMainHandOnly, $speed, $encounterRangeValue = 1824);
 
         // defense number
-        $this->addDefenseNumberFromActions($combatActions, $defenseNumberModifierFromActions = -155157);
+        $this->addDefenseNumberFromActions($combatActions, $enemyIsFasterThanYou, $defenseNumberModifierFromActions = -155157);
         $this->addDefenseNumberMalusByStrength($armourer, $weaponlikeCode, $strengthForMainHandOnly, $defenseNumberMalusByStrengthWithWeapon = -518415);
         $this->addCoverOf($armourer, $weaponlikeCode, $coverOfWeapon = 6511);
         $this->addSkillsMalusToCoverWithWeapon(
@@ -182,7 +184,7 @@ class FightPropertiesTest extends TestWithMockery
             ),
             $fightsWithTwoWeapons,
             $shieldCode,
-            false // enemy is not faster now
+            $enemyIsFasterThanYou
         );
 
         $this->I_can_get_expected_fight_number(
@@ -283,6 +285,14 @@ class FightPropertiesTest extends TestWithMockery
                 + $combatActionsFightNumberModifier
             );
         self::assertSame($expectedFightNumber->getValue(), $fightNumber->getValue());
+    }
+
+    public function provideEnemyRelativeSpeed()
+    {
+        return [
+            [true],
+            [false],
+        ];
     }
 
     /**
@@ -777,21 +787,15 @@ class FightPropertiesTest extends TestWithMockery
 
     /**
      * @param CombatActions|\Mockery\MockInterface $combatActions
+     * @param bool $enemyIsFasterThanYou
      * @param int $defenseNumberModifier
      */
-    private function addDefenseNumberFromActions(CombatActions $combatActions, $defenseNumberModifier)
+    private function addDefenseNumberFromActions(CombatActions $combatActions, $enemyIsFasterThanYou, $defenseNumberModifier)
     {
-        $combatActions->shouldReceive('getDefenseNumberModifier')
-            ->andReturn($defenseNumberModifier);
-    }
-
-    /**
-     * @param CombatActions|\Mockery\MockInterface $combatActions
-     * @param int $defenseNumberModifier
-     */
-    private function addDefenseNumberAgainstFasterOpponentFromActions(CombatActions $combatActions, $defenseNumberModifier)
-    {
-        $combatActions->shouldReceive('getDefenseNumberModifierAgainstFasterOpponent')
+        $combatActions->shouldReceive($enemyIsFasterThanYou
+            ? 'getDefenseNumberModifierAgainstFasterOpponent'
+            : 'getDefenseNumberModifier'
+        )
             ->andReturn($defenseNumberModifier);
     }
 
@@ -1029,100 +1033,6 @@ class FightPropertiesTest extends TestWithMockery
     {
         $combatActions->shouldReceive('getSpeedModifier')
             ->andReturn($speedModifier);
-    }
-
-    /**
-     * @test
-     */
-    public function I_get_defense_number_against_faster_opponent_if_so()
-    {
-        $armourer = $this->createArmourer();
-
-        $weaponlikeCode = $this->createWeapon(false /* not shooting */);
-        $strengthForMainHandOnly = Strength::getIt(123);
-        $size = Size::getIt(456);
-        $this->addCanUseArmament($armourer, $weaponlikeCode, $strengthForMainHandOnly, $size, true, true);
-
-        $strengthForOffhandOnly = Strength::getIt(234);
-        $shieldCode = $this->createShieldCode();
-        $this->addCanUseArmament($armourer, $shieldCode, $strengthForOffhandOnly, $size, true, true);
-
-        $strength = Strength::getIt(987);
-        $currentProperties = $this->createCurrentProperties(
-            $strength,
-            $size,
-            $strengthForMainHandOnly,
-            $strengthForOffhandOnly,
-            $speed = $this->mockery(Speed::class)
-        );
-        $this->addAgility($currentProperties, Agility::getIt(321));
-        $this->addHeight($currentProperties, $this->createHeight(255));
-
-        $wornBodyArmor = BodyArmorCode::getIt(BodyArmorCode::HOBNAILED_ARMOR);
-        $this->addCanUseArmament($armourer, $wornBodyArmor, $strength, $size, true);
-        $wornHelm = HelmCode::getIt(HelmCode::WITHOUT_HELM);
-        $this->addCanUseArmament($armourer, $wornHelm, $strength, $size, true);
-        $skills = $this->createSkills();
-        $missingWeaponSkillsTable = new MissingWeaponSkillTable();
-        $combatActions = $this->createCombatActions($combatActionValues = ['foo']);
-
-        $this->addBaseOfWoundsBonusByHolding($armourer, $weaponlikeCode, false /* not hold by two hands */, $baseOfWoundsBonusForHolding = 748);
-        $missingShieldSkillsTable = new MissingShieldSkillTable();
-        $tables = $this->createTables($weaponlikeCode, $combatActionValues, $armourer, $missingWeaponSkillsTable, $missingShieldSkillsTable);
-
-        // defense number
-        $this->addDefenseNumberAgainstFasterOpponentFromActions($combatActions, $defenseNumberModifierFromActions = -61928);
-        $this->addDefenseNumberMalusByStrength($armourer, $weaponlikeCode, $strengthForMainHandOnly, $defenseNumberMalusByStrengthWithWeapon = -518415);
-        $this->addCoverOf($armourer, $weaponlikeCode, $coverOfWeapon = 6511);
-        $this->addSkillsMalusToCoverWithWeapon(
-            $skills,
-            $weaponlikeCode,
-            $missingWeaponSkillsTable,
-            false, // does not fights with two weapons,
-            $skillsMalusToCoverWithWeapon = -551514
-        );
-        $this->addDefenseNumberMalusByStrength($armourer, $shieldCode, $strengthForOffhandOnly, $defenseNumberMalusByStrengthWithShield = -1640);
-        $this->addCoverOf($armourer, $shieldCode, $coverOfShield = 712479);
-        $this->addSkillsMalusToCoverWithShield(
-            $skills,
-            $missingShieldSkillsTable,
-            $skillsMalusToCoverWithShield = -71810482
-        );
-
-        // moved distance
-        $this->addActionsSpeedModifier($combatActions, $combatActionsSpeedModifier = 0);
-
-        $fightProperties = new FightProperties(
-            $currentProperties,
-            $combatActions,
-            $skills,
-            $wornBodyArmor,
-            $wornHelm,
-            $professionCode = ProfessionCode::getIt(ProfessionCode::FIGHTER),
-            $tables,
-            $weaponlikeCode,
-            $this->createWeaponlikeHolding(
-                false, /* does not keep weapon by both hands now */
-                true, /* holds weapon by main hand */
-                false /* does not hold weapon by offhand */
-            ),
-            false, // does not fights with two weapons,
-            $shieldCode,
-            true // enemy is faster now
-        );
-
-        $this->I_can_get_defense_number(
-            $fightProperties,
-            $currentProperties,
-            $defenseNumberModifierFromActions,
-            $defenseNumberMalusByStrengthWithWeapon,
-            $coverOfWeapon,
-            $skillsMalusToCoverWithWeapon,
-            $defenseNumberMalusByStrengthWithShield,
-            $coverOfShield,
-            $skillsMalusToCoverWithShield,
-            $size
-        );
     }
 
     // NEGATIVE TESTS
