@@ -177,11 +177,12 @@ class FightPropertiesTest extends TestWithMockery
             $weaponlikeCode,
             $this->createWeaponlikeHolding(
                 false, /* does not keep weapon by both hands now */
-                true /* holds weapon by main hand */
+                true, /* holds weapon by main hand */
+                false /* does not hold weapon by offhand */
             ),
             $fightsWithTwoWeapons,
             $shieldCode,
-            $enemyIsFaster = false // enemy is not faster now
+            false // enemy is not faster now
         );
 
         $this->I_can_get_expected_fight_number(
@@ -226,7 +227,6 @@ class FightPropertiesTest extends TestWithMockery
             $fightProperties,
             $currentProperties,
             $defenseNumberModifierFromActions,
-            $enemyIsFaster,
             $defenseNumberMalusByStrengthWithWeapon,
             $coverOfWeapon,
             $skillsMalusToCoverWithWeapon,
@@ -384,7 +384,6 @@ class FightPropertiesTest extends TestWithMockery
      * @param FightProperties $fightProperties
      * @param CurrentProperties $currentProperties
      * @param int $defenseNumberModifierFromCombatActions
-     * @param bool $enemyIsFaster
      * @param int $defenseNumberMalusByStrengthWithWeapon
      * @param int $coverOfWeapon
      * @param int $skillsMalusToCoverWithWeapon
@@ -397,7 +396,6 @@ class FightPropertiesTest extends TestWithMockery
         FightProperties $fightProperties,
         CurrentProperties $currentProperties,
         $defenseNumberModifierFromCombatActions,
-        $enemyIsFaster,
         $defenseNumberMalusByStrengthWithWeapon,
         $coverOfWeapon,
         $skillsMalusToCoverWithWeapon,
@@ -407,7 +405,6 @@ class FightPropertiesTest extends TestWithMockery
         Size $size
     )
     {
-        self::assertFalse($enemyIsFaster, 'Test of defense number against faster enemy is not created yet. Do it.');
         self::assertInstanceOf(DefenseNumber::class, $fightProperties->getDefenseNumber());
         $expectedDefenseNumber = (new DefenseNumber($currentProperties->getAgility()))
             ->add($defenseNumberModifierFromCombatActions);
@@ -633,11 +630,12 @@ class FightPropertiesTest extends TestWithMockery
     }
 
     /**
-     * @param $holdsByTwoHands
-     * @param $holdsByMainHand
+     * @param bool $holdsByTwoHands
+     * @param bool $holdsByMainHand
+     * @param bool $holdsByOffhand
      * @return \Mockery\MockInterface|ItemHoldingCode
      */
-    private function createWeaponlikeHolding($holdsByTwoHands, $holdsByMainHand)
+    private function createWeaponlikeHolding($holdsByTwoHands, $holdsByMainHand, $holdsByOffhand)
     {
         $itemHolding = $this->mockery(ItemHoldingCode::class);
         $itemHolding->shouldReceive('holdsByTwoHands')
@@ -647,7 +645,7 @@ class FightPropertiesTest extends TestWithMockery
         $itemHolding->shouldReceive('holdsByMainHand')
             ->andReturn($holdsByMainHand);
         $itemHolding->shouldReceive('holdsByOffhand')
-            ->andReturn(!$holdsByMainHand);
+            ->andReturn($holdsByOffhand);
 
         return $itemHolding;
     }
@@ -784,6 +782,16 @@ class FightPropertiesTest extends TestWithMockery
     private function addDefenseNumberFromActions(CombatActions $combatActions, $defenseNumberModifier)
     {
         $combatActions->shouldReceive('getDefenseNumberModifier')
+            ->andReturn($defenseNumberModifier);
+    }
+
+    /**
+     * @param CombatActions|\Mockery\MockInterface $combatActions
+     * @param int $defenseNumberModifier
+     */
+    private function addDefenseNumberAgainstFasterOpponentFromActions(CombatActions $combatActions, $defenseNumberModifier)
+    {
+        $combatActions->shouldReceive('getDefenseNumberModifierAgainstFasterOpponent')
             ->andReturn($defenseNumberModifier);
     }
 
@@ -1025,6 +1033,102 @@ class FightPropertiesTest extends TestWithMockery
 
     /**
      * @test
+     */
+    public function I_get_defense_number_against_faster_opponent_if_so()
+    {
+        $armourer = $this->createArmourer();
+
+        $weaponlikeCode = $this->createWeapon(false /* not shooting */);
+        $strengthForMainHandOnly = Strength::getIt(123);
+        $size = Size::getIt(456);
+        $this->addCanUseArmament($armourer, $weaponlikeCode, $strengthForMainHandOnly, $size, true, true);
+
+        $strengthForOffhandOnly = Strength::getIt(234);
+        $shieldCode = $this->createShieldCode();
+        $this->addCanUseArmament($armourer, $shieldCode, $strengthForOffhandOnly, $size, true, true);
+
+        $strength = Strength::getIt(987);
+        $currentProperties = $this->createCurrentProperties(
+            $strength,
+            $size,
+            $strengthForMainHandOnly,
+            $strengthForOffhandOnly,
+            $speed = $this->mockery(Speed::class)
+        );
+        $this->addAgility($currentProperties, Agility::getIt(321));
+        $this->addHeight($currentProperties, $this->createHeight(255));
+
+        $wornBodyArmor = BodyArmorCode::getIt(BodyArmorCode::HOBNAILED_ARMOR);
+        $this->addCanUseArmament($armourer, $wornBodyArmor, $strength, $size, true);
+        $wornHelm = HelmCode::getIt(HelmCode::WITHOUT_HELM);
+        $this->addCanUseArmament($armourer, $wornHelm, $strength, $size, true);
+        $skills = $this->createSkills();
+        $missingWeaponSkillsTable = new MissingWeaponSkillTable();
+        $combatActions = $this->createCombatActions($combatActionValues = ['foo']);
+
+        $this->addBaseOfWoundsBonusByHolding($armourer, $weaponlikeCode, false /* not hold by two hands */, $baseOfWoundsBonusForHolding = 748);
+        $missingShieldSkillsTable = new MissingShieldSkillTable();
+        $tables = $this->createTables($weaponlikeCode, $combatActionValues, $armourer, $missingWeaponSkillsTable, $missingShieldSkillsTable);
+
+        // defense number
+        $this->addDefenseNumberAgainstFasterOpponentFromActions($combatActions, $defenseNumberModifierFromActions = -61928);
+        $this->addDefenseNumberMalusByStrength($armourer, $weaponlikeCode, $strengthForMainHandOnly, $defenseNumberMalusByStrengthWithWeapon = -518415);
+        $this->addCoverOf($armourer, $weaponlikeCode, $coverOfWeapon = 6511);
+        $this->addSkillsMalusToCoverWithWeapon(
+            $skills,
+            $weaponlikeCode,
+            $missingWeaponSkillsTable,
+            false, // does not fights with two weapons,
+            $skillsMalusToCoverWithWeapon = -551514
+        );
+        $this->addDefenseNumberMalusByStrength($armourer, $shieldCode, $strengthForOffhandOnly, $defenseNumberMalusByStrengthWithShield = -1640);
+        $this->addCoverOf($armourer, $shieldCode, $coverOfShield = 712479);
+        $this->addSkillsMalusToCoverWithShield(
+            $skills,
+            $missingShieldSkillsTable,
+            $skillsMalusToCoverWithShield = -71810482
+        );
+
+        // moved distance
+        $this->addActionsSpeedModifier($combatActions, $combatActionsSpeedModifier = 0);
+
+        $fightProperties = new FightProperties(
+            $currentProperties,
+            $combatActions,
+            $skills,
+            $wornBodyArmor,
+            $wornHelm,
+            $professionCode = ProfessionCode::getIt(ProfessionCode::FIGHTER),
+            $tables,
+            $weaponlikeCode,
+            $this->createWeaponlikeHolding(
+                false, /* does not keep weapon by both hands now */
+                true, /* holds weapon by main hand */
+                false /* does not hold weapon by offhand */
+            ),
+            false, // does not fights with two weapons,
+            $shieldCode,
+            true // enemy is faster now
+        );
+
+        $this->I_can_get_defense_number(
+            $fightProperties,
+            $currentProperties,
+            $defenseNumberModifierFromActions,
+            $defenseNumberMalusByStrengthWithWeapon,
+            $coverOfWeapon,
+            $skillsMalusToCoverWithWeapon,
+            $defenseNumberMalusByStrengthWithShield,
+            $coverOfShield,
+            $skillsMalusToCoverWithShield,
+            $size
+        );
+    }
+
+    // NEGATIVE TESTS
+
+    /**
+     * @test
      * @expectedException \DrdPlus\CurrentProperties\Exceptions\CanNotUseArmamentBecauseOfMissingStrength
      * @dataProvider provideArmamentsBearing
      * @param bool $weaponIsBearable
@@ -1067,7 +1171,8 @@ class FightPropertiesTest extends TestWithMockery
             $weaponlikeCode,
             $this->createWeaponlikeHolding(
                 false, /* does not keep weapon by both hands now */
-                true /* holds weapon by main hand */
+                true, /* holds weapon by main hand */
+                false /* does not hold weapon by offhand */
             ),
             false, // does not fight with two weapons now
             $shieldCode,
@@ -1127,7 +1232,8 @@ class FightPropertiesTest extends TestWithMockery
             $weaponlikeCode,
             $this->createWeaponlikeHolding(
                 $holdsByTwoHands,
-                true /* holds weapon by main hand */
+                true, /* holds weapon by main hand */
+                false /* does not hold weapon by offhand */
             ),
             $fightsWithTwoWeapons,
             $shieldCode,
@@ -1177,7 +1283,8 @@ class FightPropertiesTest extends TestWithMockery
             $weaponlikeCode,
             $this->createWeaponlikeHolding(
                 false, // does not hold it by two hands
-                true /* holds weapon by main hand */
+                true, /* holds weapon by main hand */
+                false /* does not hold weapon by offhand */
             ),
             true, // fights with two weapons (does not affect this test)
             $shieldCode,
@@ -1220,7 +1327,51 @@ class FightPropertiesTest extends TestWithMockery
             $weaponlikeCode,
             $this->createWeaponlikeHolding(
                 false, // does not hold it by two hands
-                true // holds weapon by main hand
+                true, // holds weapon by main hand
+                false /* does not hold weapon by offhand */
+            ),
+            true, // fights with two weapons (does not affect this test)
+            $shieldCode,
+            false // enemy is not faster now (does not affect this test)
+        );
+    }
+
+    /**
+     * @test
+     * @expectedException \DrdPlus\CurrentProperties\Exceptions\UnknownWeaponOrShieldHolding
+     */
+    public function I_can_not_create_it_with_unknown_holding()
+    {
+        $armourer = $this->createArmourer();
+
+        $weaponlikeCode = $this->createWeapon();
+        $strengthForMainHandOnly = Strength::getIt(123);
+        $size = Size::getIt(456);
+        $this->addCanUseArmament($armourer, $weaponlikeCode, $strengthForMainHandOnly, $size, true, true);
+
+        $shieldCode = ShieldCode::getIt(ShieldCode::WITHOUT_SHIELD);
+        $strengthForOffhandOnly = Strength::getIt(234);
+        $this->addCanUseArmament($armourer, $shieldCode, $strengthForOffhandOnly, $size, true, true);
+
+        $strength = Strength::getIt(698);
+        $bodyArmorCode = BodyArmorCode::getIt(BodyArmorCode::WITHOUT_ARMOR);
+        $this->addCanUseArmament($armourer, $bodyArmorCode, $strength, $size, true);
+        $helmCode = HelmCode::getIt(HelmCode::WITHOUT_HELM);
+        $this->addCanUseArmament($armourer, $helmCode, $strength, $size, true);
+
+        new FightProperties(
+            $this->createCurrentProperties($strength, $size, $strengthForMainHandOnly, $strengthForOffhandOnly),
+            $this->createCombatActions($combatActionValues = ['foo']),
+            $this->createSkills(),
+            $bodyArmorCode,
+            $helmCode,
+            ProfessionCode::getIt(ProfessionCode::RANGER),
+            $this->createTables($weaponlikeCode, $combatActionValues, $armourer),
+            $weaponlikeCode,
+            $this->createWeaponlikeHolding(
+                false, // does not hold weapon by two hands
+                false, // does not hold weapon by main hand
+                false /* does not hold weapon by offhand */
             ),
             true, // fights with two weapons (does not affect this test)
             $shieldCode,

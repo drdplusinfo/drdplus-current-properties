@@ -107,7 +107,7 @@ class FightProperties extends StrictObject
      * @throws \DrdPlus\CurrentProperties\Exceptions\IncompatibleCombatActions
      * @throws \DrdPlus\CurrentProperties\Exceptions\CanNotUseArmamentBecauseOfMissingStrength
      * @throws \DrdPlus\CurrentProperties\Exceptions\ImpossibleActionsWithCurrentWeaponlike
-     * @throws \DrdPlus\CurrentProperties\Exceptions\UnknownWeaponHolding
+     * @throws \DrdPlus\CurrentProperties\Exceptions\UnknownWeaponOrShieldHolding
      * @throws \DrdPlus\CurrentProperties\Exceptions\NoHandLeftForShield
      * @throws \Granam\Boolean\Tools\Exceptions\WrongParameterType
      */
@@ -219,7 +219,7 @@ class FightProperties extends StrictObject
 
     /**
      * @throws \DrdPlus\CurrentProperties\Exceptions\CanNotUseArmamentBecauseOfMissingStrength
-     * @throws \DrdPlus\CurrentProperties\Exceptions\UnknownWeaponHolding
+     * @throws \DrdPlus\CurrentProperties\Exceptions\UnknownWeaponOrShieldHolding
      */
     private function guardWeaponlikeWearable()
     {
@@ -228,7 +228,7 @@ class FightProperties extends StrictObject
 
     /**
      * @throws \DrdPlus\CurrentProperties\Exceptions\CanNotUseArmamentBecauseOfMissingStrength
-     * @throws \DrdPlus\CurrentProperties\Exceptions\UnknownWeaponHolding
+     * @throws \DrdPlus\CurrentProperties\Exceptions\UnknownWeaponOrShieldHolding
      * @throws \DrdPlus\CurrentProperties\Exceptions\NoHandLeftForShield
      */
     private function guardShieldWearable()
@@ -253,7 +253,7 @@ class FightProperties extends StrictObject
 
     /**
      * @return Strength
-     * @throws \DrdPlus\CurrentProperties\Exceptions\UnknownWeaponHolding
+     * @throws \DrdPlus\CurrentProperties\Exceptions\UnknownWeaponOrShieldHolding
      */
     private function getStrengthForWeaponlike()
     {
@@ -267,7 +267,7 @@ class FightProperties extends StrictObject
      * @param WeaponlikeCode $weaponOrShield
      * @param ItemHoldingCode $holding
      * @return Strength
-     * @throws \DrdPlus\CurrentProperties\Exceptions\UnknownWeaponHolding
+     * @throws \DrdPlus\CurrentProperties\Exceptions\UnknownWeaponOrShieldHolding
      */
     private function getStrengthForWeaponOrShield(WeaponlikeCode $weaponOrShield, ItemHoldingCode $holding)
     {
@@ -288,13 +288,15 @@ class FightProperties extends StrictObject
             // your less-dominant hand is weaker (try it)
             return $this->currentProperties->getStrengthForOffhandOnly();
         }
-        throw new Exceptions\UnknownWeaponHolding('Do not know how to use weapon when holding like ' . $holding);
+        throw new Exceptions\UnknownWeaponOrShieldHolding(
+            "Do not know how to use {$weaponOrShield} when holding it like {$holding}"
+        );
     }
 
     /**
      * @return Strength
      * @throws \DrdPlus\CurrentProperties\Exceptions\NoHandLeftForShield
-     * @throws \DrdPlus\CurrentProperties\Exceptions\UnknownWeaponHolding
+     * @throws \DrdPlus\CurrentProperties\Exceptions\UnknownWeaponOrShieldHolding
      */
     private function getStrengthForShield()
     {
@@ -306,7 +308,7 @@ class FightProperties extends StrictObject
      *
      * @return ItemHoldingCode
      * @throws \DrdPlus\CurrentProperties\Exceptions\NoHandLeftForShield
-     * @throws \DrdPlus\CurrentProperties\Exceptions\UnknownWeaponHolding
+     * @throws \DrdPlus\CurrentProperties\Exceptions\UnknownWeaponOrShieldHolding
      */
     private function getShieldHolding()
     {
@@ -321,7 +323,7 @@ class FightProperties extends StrictObject
                 "Can not give holding to a shield when holding {$this->weaponlike} like {$this->weaponlikeHolding}"
             );
         }
-        throw new Exceptions\UnknownWeaponHolding(
+        throw new Exceptions\UnknownWeaponOrShieldHolding(
             "Do not know how to use {$this->shield} when holding {$this->weaponlike} like {$this->weaponlikeHolding}"
         );
     }
