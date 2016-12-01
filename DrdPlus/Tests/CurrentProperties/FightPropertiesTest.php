@@ -4,6 +4,7 @@ namespace DrdPlus\Tests\CurrentProperties;
 use DrdPlus\Codes\Armaments\ArmamentCode;
 use DrdPlus\Codes\Armaments\BodyArmorCode;
 use DrdPlus\Codes\Armaments\HelmCode;
+use DrdPlus\Codes\Armaments\MeleeWeaponCode;
 use DrdPlus\Codes\Armaments\RangedWeaponCode;
 use DrdPlus\Codes\Armaments\ShieldCode;
 use DrdPlus\Codes\Armaments\WeaponCode;
@@ -44,26 +45,39 @@ class FightPropertiesTest extends TestWithMockery
      * @test
      * @dataProvider provideUsageCombinations
      * @param bool $enemyIsFasterThanYou
-     * @param bool $holdWeaponByTwoHands
      * @param bool $weaponIsTwoHandedOnly
+     * @param bool $holdWeaponByTwoHands
+     * @param bool $weaponIsInMainHand
      */
-    public function I_can_use_it($enemyIsFasterThanYou, $holdWeaponByTwoHands, $weaponIsTwoHandedOnly)
+    public function I_can_use_it(
+        $enemyIsFasterThanYou,
+        $weaponIsTwoHandedOnly,
+        $holdWeaponByTwoHands,
+        $weaponIsInMainHand
+    )
     {
         $armourer = $this->createArmourer();
 
-        $weaponlikeCode = $this->createWeapon(false /* not shooting */);
-        $strengthForMainHandOnly = Strength::getIt(123);
+        $weaponlikeCode = $this->createWeapon(MeleeWeaponCode::CUDGEL, false /* not shooting */);
+        $strengthForMainHandOnly = Strength::getIt(987);
+        $strengthForOffhandOnly = Strength::getIt(654);
+        $baseStrengthForWeapon = $weaponIsInMainHand || $holdWeaponByTwoHands
+            ? $strengthForMainHandOnly
+            : $strengthForOffhandOnly;
         $strengthForWeapon = $holdWeaponByTwoHands && !$weaponIsTwoHandedOnly
-            ? $strengthForMainHandOnly->add(2)
-            : $strengthForMainHandOnly;
+            ? $baseStrengthForWeapon->add(2)
+            : $baseStrengthForWeapon;
         $size = Size::getIt(456);
         $this->addCanUseArmament($armourer, $weaponlikeCode, $strengthForWeapon, $size, true, true, true, $weaponIsTwoHandedOnly);
 
-        $strengthForOffhandOnly = Strength::getIt(234);
         $shieldCode = $holdWeaponByTwoHands
             ? ShieldCode::getIt(ShieldCode::WITHOUT_SHIELD)
             : ShieldCode::getIt(ShieldCode::HEAVY_SHIELD);
-        $this->addCanUseArmament($armourer, $shieldCode, $strengthForOffhandOnly, $size, true, true);
+        // weapon if two hands means strength for main hand for a shield (if without shield, otherwise throws exception)
+        $strengthForShield = $weaponIsInMainHand && !$holdWeaponByTwoHands
+            ? $strengthForOffhandOnly
+            : $strengthForMainHandOnly;
+        $this->addCanUseArmament($armourer, $shieldCode, $strengthForShield, $size);
 
         $strength = Strength::getIt(987);
         $currentProperties = $this->createCurrentProperties(
@@ -77,9 +91,9 @@ class FightPropertiesTest extends TestWithMockery
         $this->addHeight($currentProperties, $this->createHeight(255));
 
         $wornBodyArmor = BodyArmorCode::getIt(BodyArmorCode::HOBNAILED_ARMOR);
-        $this->addCanUseArmament($armourer, $wornBodyArmor, $strength, $size, true);
+        $this->addCanUseArmament($armourer, $wornBodyArmor, $strength, $size);
         $wornHelm = HelmCode::getIt(HelmCode::WITHOUT_HELM);
-        $this->addCanUseArmament($armourer, $wornHelm, $strength, $size, true);
+        $this->addCanUseArmament($armourer, $wornHelm, $strength, $size);
         $skills = $this->createSkills();
         $missingWeaponSkillsTable = new MissingWeaponSkillTable();
         $combatActions = $this->createCombatActions($combatActionValues = ['foo']);
@@ -126,7 +140,7 @@ class FightPropertiesTest extends TestWithMockery
         $this->addFightNumberMalusByStrengthWithWeaponOrShield(
             $armourer,
             $shieldCode,
-            $strengthForOffhandOnly,
+            $strengthForShield,
             $fightNumberMalusByStrengthWithShield = 56
         );
         $this->addFightNumberMalusFromProtectivesBySkills(
@@ -164,7 +178,7 @@ class FightPropertiesTest extends TestWithMockery
             $fightsWithTwoWeapons,
             $skillsMalusToCoverWithWeapon = -551514
         );
-        $this->addDefenseNumberMalusByStrength($armourer, $shieldCode, $strengthForOffhandOnly, $defenseNumberMalusByStrengthWithShield = -1640);
+        $this->addDefenseNumberMalusByStrength($armourer, $shieldCode, $strengthForShield, $defenseNumberMalusByStrengthWithShield = -1640);
         $this->addCoverOf($armourer, $shieldCode, $coverOfShield = 712479);
         $this->addSkillsMalusToCoverWithShield(
             $skills,
@@ -174,6 +188,13 @@ class FightPropertiesTest extends TestWithMockery
 
         // moved distance
         $this->addActionsSpeedModifier($combatActions, $combatActionsSpeedModifier = 0);
+        if ($holdWeaponByTwoHands) {
+            $weaponHolding = ItemHoldingCode::getIt(ItemHoldingCode::TWO_HANDS);
+        } elseif ($weaponIsInMainHand) {
+            $weaponHolding = ItemHoldingCode::getIt(ItemHoldingCode::MAIN_HAND);
+        } else {
+            $weaponHolding = ItemHoldingCode::getIt(ItemHoldingCode::OFFHAND);
+        }
 
         $fightProperties = new FightProperties(
             $currentProperties,
@@ -184,9 +205,7 @@ class FightPropertiesTest extends TestWithMockery
             $professionCode = ProfessionCode::getIt(ProfessionCode::FIGHTER),
             $tables,
             $weaponlikeCode,
-            $holdWeaponByTwoHands
-                ? ItemHoldingCode::getIt(ItemHoldingCode::TWO_HANDS)
-                : ItemHoldingCode::getIt(ItemHoldingCode::MAIN_HAND),
+            $weaponHolding,
             $fightsWithTwoWeapons,
             $shieldCode,
             $enemyIsFasterThanYou
@@ -246,6 +265,17 @@ class FightPropertiesTest extends TestWithMockery
         $this->I_can_get_moved_distance($fightProperties, $combatActionsSpeedModifier);
     }
 
+    public function provideUsageCombinations()
+    {
+        // enemy is faster than you, weapon is two handed only, holds weapon by two hands, weapon in main hand
+        return [
+            [true, false, false, true],
+            [true, false, false, false],
+            [false, false, true, true],
+            [false, true, true, false],
+        ];
+    }
+
     /**
      * @param FightProperties $fightProperties
      * @param ProfessionCode $professionCode
@@ -290,16 +320,6 @@ class FightPropertiesTest extends TestWithMockery
                 + $combatActionsFightNumberModifier
             );
         self::assertSame($expectedFightNumber->getValue(), $fightNumber->getValue());
-    }
-
-    public function provideUsageCombinations()
-    {
-        // enemy is faster than you, holds weapon by two hands, weapon is two handed only
-        return [
-            [true, false, false],
-            [false, true, false],
-            [false, true, true],
-        ];
     }
 
     /**
@@ -508,7 +528,7 @@ class FightPropertiesTest extends TestWithMockery
         ArmamentCode $armamentCode,
         Strength $expectedStrength,
         Size $size,
-        $canUseArmament,
+        $canUseArmament = true,
         $canHoldItByOneHand = true,
         $canHoldItByTwoHands = true,
         $isTwoHandedOnly = false
@@ -522,7 +542,7 @@ class FightPropertiesTest extends TestWithMockery
                     self::assertSame(
                         $expectedStrength->getValue(),
                         $strength->getValue(),
-                        "Expected strength {$expectedStrength->getValue()}, got {$strength->getValue()}"
+                        "Expected strength {$expectedStrength->getValue()}, got {$strength->getValue()} for {$armamentCode}"
                     );
 
                     return $canUseArmament;
@@ -648,12 +668,15 @@ class FightPropertiesTest extends TestWithMockery
     }
 
     /**
+     * @param string $name
      * @param bool $isShooting
      * @return \Mockery\MockInterface|WeaponCode
      */
-    private function createWeapon($isShooting = false)
+    private function createWeapon($name = 'foo', $isShooting = false)
     {
         $weaponlikeCode = $this->mockery(WeaponCode::class);
+        $weaponlikeCode->shouldReceive('__toString')
+            ->andReturn($name);
         $weaponlikeCode->shouldReceive('isShield')
             ->andReturn(false);
         $weaponlikeCode->shouldReceive('isShootingWeapon')
@@ -855,7 +878,11 @@ class FightPropertiesTest extends TestWithMockery
             ->with($weaponlikeCode, \Mockery::type(Strength::class))
             ->andReturnUsing(
                 function (WeaponlikeCode $weaponlikeCode, Strength $strength) use ($defenseNumberMalus, $expectedStrength) {
-                    self::assertSame($expectedStrength->getValue(), $strength->getValue());
+                    self::assertSame(
+                        $expectedStrength->getValue(),
+                        $strength->getValue(),
+                        "Expected strength {$expectedStrength}, got {$strength} for {$weaponlikeCode}"
+                    );
 
                     return $defenseNumberMalus;
                 }
@@ -1118,11 +1145,11 @@ class FightPropertiesTest extends TestWithMockery
         $weaponlikeCode = $this->createWeapon();
         $strengthForMainHandOnly = Strength::getIt(123);
         $size = Size::getIt(456);
-        $this->addCanUseArmament($armourer, $weaponlikeCode, $strengthForMainHandOnly, $size, $weaponIsBearable, true);
+        $this->addCanUseArmament($armourer, $weaponlikeCode, $strengthForMainHandOnly, $size, $weaponIsBearable);
 
         $shieldCode = $this->createShieldCode();
         $strengthForOffhandOnly = Strength::getIt(234);
-        $this->addCanUseArmament($armourer, $shieldCode, $strengthForOffhandOnly, $size, $shieldIsBearable, true);
+        $this->addCanUseArmament($armourer, $shieldCode, $strengthForOffhandOnly, $size, $shieldIsBearable);
 
         $strength = Strength::getIt(698);
         $bodyArmorCode = BodyArmorCode::getIt(BodyArmorCode::WITHOUT_ARMOR);
@@ -1186,13 +1213,13 @@ class FightPropertiesTest extends TestWithMockery
 
         $shieldCode = ShieldCode::getIt(ShieldCode::WITHOUT_SHIELD);
         $strengthForOffhandOnly = Strength::getIt(234);
-        $this->addCanUseArmament($armourer, $shieldCode, $strengthForOffhandOnly, $size, true, true);
+        $this->addCanUseArmament($armourer, $shieldCode, $strengthForOffhandOnly, $size);
 
         $strength = Strength::getIt(698);
         $bodyArmorCode = BodyArmorCode::getIt(BodyArmorCode::WITHOUT_ARMOR);
-        $this->addCanUseArmament($armourer, $bodyArmorCode, $strength, $size, true);
+        $this->addCanUseArmament($armourer, $bodyArmorCode, $strength, $size);
         $helmCode = HelmCode::getIt(HelmCode::WITHOUT_HELM);
-        $this->addCanUseArmament($armourer, $helmCode, $strength, $size, true);
+        $this->addCanUseArmament($armourer, $helmCode, $strength, $size);
 
         new FightProperties(
             $this->createCurrentProperties($strength, $size, $strengthForMainHandOnly, $strengthForOffhandOnly),
@@ -1237,13 +1264,13 @@ class FightPropertiesTest extends TestWithMockery
 
         $shieldCode = ShieldCode::getIt(ShieldCode::WITHOUT_SHIELD);
         $strengthForOffhandOnly = Strength::getIt(234);
-        $this->addCanUseArmament($armourer, $shieldCode, $strengthForOffhandOnly, $size, true, true);
+        $this->addCanUseArmament($armourer, $shieldCode, $strengthForOffhandOnly, $size);
 
         $strength = Strength::getIt(698);
         $bodyArmorCode = BodyArmorCode::getIt(BodyArmorCode::WITHOUT_ARMOR);
-        $this->addCanUseArmament($armourer, $bodyArmorCode, $strength, $size, true);
+        $this->addCanUseArmament($armourer, $bodyArmorCode, $strength, $size);
         $helmCode = HelmCode::getIt(HelmCode::WITHOUT_HELM);
-        $this->addCanUseArmament($armourer, $helmCode, $strength, $size, true);
+        $this->addCanUseArmament($armourer, $helmCode, $strength, $size);
 
         new FightProperties(
             $this->createCurrentProperties($strength, $size, $strengthForMainHandOnly, $strengthForOffhandOnly),
@@ -1277,17 +1304,17 @@ class FightPropertiesTest extends TestWithMockery
         $weaponlikeCode = $this->createWeapon();
         $strengthForMainHandOnly = Strength::getIt(123);
         $size = Size::getIt(456);
-        $this->addCanUseArmament($armourer, $weaponlikeCode, $strengthForMainHandOnly, $size, true, true);
+        $this->addCanUseArmament($armourer, $weaponlikeCode, $strengthForMainHandOnly, $size);
 
         $shieldCode = ShieldCode::getIt(ShieldCode::WITHOUT_SHIELD);
         $strengthForOffhandOnly = Strength::getIt(234);
-        $this->addCanUseArmament($armourer, $shieldCode, $strengthForOffhandOnly, $size, true, true);
+        $this->addCanUseArmament($armourer, $shieldCode, $strengthForOffhandOnly, $size);
 
         $strength = Strength::getIt(698);
         $bodyArmorCode = BodyArmorCode::getIt(BodyArmorCode::WITHOUT_ARMOR);
-        $this->addCanUseArmament($armourer, $bodyArmorCode, $strength, $size, true);
+        $this->addCanUseArmament($armourer, $bodyArmorCode, $strength, $size);
         $helmCode = HelmCode::getIt(HelmCode::WITHOUT_HELM);
-        $this->addCanUseArmament($armourer, $helmCode, $strength, $size, true);
+        $this->addCanUseArmament($armourer, $helmCode, $strength, $size);
 
         new FightProperties(
             $this->createCurrentProperties($strength, $size, $strengthForMainHandOnly, $strengthForOffhandOnly),
@@ -1311,7 +1338,7 @@ class FightPropertiesTest extends TestWithMockery
 
     /**
      * @test
-     * @expectedException \DrdPlus\CurrentProperties\Exceptions\UnknownWeaponOrShieldHolding
+     * @expectedException \DrdPlus\CurrentProperties\Exceptions\UnknownWeaponHolding
      */
     public function I_can_not_create_it_with_unknown_holding()
     {
@@ -1320,17 +1347,17 @@ class FightPropertiesTest extends TestWithMockery
         $weaponlikeCode = $this->createWeapon();
         $strengthForMainHandOnly = Strength::getIt(123);
         $size = Size::getIt(456);
-        $this->addCanUseArmament($armourer, $weaponlikeCode, $strengthForMainHandOnly, $size, true, true);
+        $this->addCanUseArmament($armourer, $weaponlikeCode, $strengthForMainHandOnly, $size);
 
         $shieldCode = ShieldCode::getIt(ShieldCode::WITHOUT_SHIELD);
         $strengthForOffhandOnly = Strength::getIt(234);
-        $this->addCanUseArmament($armourer, $shieldCode, $strengthForOffhandOnly, $size, true, true);
+        $this->addCanUseArmament($armourer, $shieldCode, $strengthForOffhandOnly, $size);
 
         $strength = Strength::getIt(698);
         $bodyArmorCode = BodyArmorCode::getIt(BodyArmorCode::WITHOUT_ARMOR);
-        $this->addCanUseArmament($armourer, $bodyArmorCode, $strength, $size, true);
+        $this->addCanUseArmament($armourer, $bodyArmorCode, $strength, $size);
         $helmCode = HelmCode::getIt(HelmCode::WITHOUT_HELM);
-        $this->addCanUseArmament($armourer, $helmCode, $strength, $size, true);
+        $this->addCanUseArmament($armourer, $helmCode, $strength, $size);
 
         new FightProperties(
             $this->createCurrentProperties($strength, $size, $strengthForMainHandOnly, $strengthForOffhandOnly),
@@ -1344,9 +1371,49 @@ class FightPropertiesTest extends TestWithMockery
             $this->createWeaponlikeHolding(
                 false, // does not hold weapon by two hands
                 false, // does not hold weapon by main hand
-                false /* does not hold weapon by offhand */
+                false // does not hold weapon by offhand
             ),
             true, // fights with two weapons (does not affect this test)
+            $shieldCode,
+            false // enemy is not faster now (does not affect this test)
+        );
+    }
+
+    /**
+     * @test
+     * @expectedException \DrdPlus\CurrentProperties\Exceptions\NoHandLeftForShield
+     * @expectedExceptionMessageRegExp ~buckler when holding foo with~
+     */
+    public function I_can_not_use_shield_when_holding_weapon_by_two_hands()
+    {
+        $armourer = $this->createArmourer();
+
+        $weaponlikeCode = $this->createWeapon('foo');
+        $strengthForMainHandOnly = Strength::getIt(123);
+        $size = Size::getIt(456);
+        $this->addCanUseArmament($armourer, $weaponlikeCode, $strengthForMainHandOnly, $size, true, true, true, true /* two handed only */);
+
+        $shieldCode = ShieldCode::getIt(ShieldCode::BUCKLER);
+        $strengthForOffhandOnly = Strength::getIt(234);
+        $this->addCanUseArmament($armourer, $shieldCode, $strengthForOffhandOnly, $size);
+
+        $strength = Strength::getIt(698);
+        $bodyArmorCode = BodyArmorCode::getIt(BodyArmorCode::WITHOUT_ARMOR);
+        $this->addCanUseArmament($armourer, $bodyArmorCode, $strength, $size);
+        $helmCode = HelmCode::getIt(HelmCode::WITHOUT_HELM);
+        $this->addCanUseArmament($armourer, $helmCode, $strength, $size);
+
+        new FightProperties(
+            $this->createCurrentProperties($strength, $size, $strengthForMainHandOnly, $strengthForOffhandOnly),
+            $this->createCombatActions($combatActionValues = ['bar']),
+            $this->createSkills(),
+            $bodyArmorCode,
+            $helmCode,
+            ProfessionCode::getIt(ProfessionCode::RANGER),
+            $this->createTables($weaponlikeCode, $combatActionValues, $armourer),
+            $weaponlikeCode,
+            ItemHoldingCode::getIt(ItemHoldingCode::TWO_HANDS),
+            false,
             $shieldCode,
             false // enemy is not faster now (does not affect this test)
         );

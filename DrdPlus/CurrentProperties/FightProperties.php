@@ -107,7 +107,7 @@ class FightProperties extends StrictObject
      * @throws \DrdPlus\CurrentProperties\Exceptions\IncompatibleCombatActions
      * @throws \DrdPlus\CurrentProperties\Exceptions\CanNotUseArmamentBecauseOfMissingStrength
      * @throws \DrdPlus\CurrentProperties\Exceptions\ImpossibleActionsWithCurrentWeaponlike
-     * @throws \DrdPlus\CurrentProperties\Exceptions\UnknownWeaponOrShieldHolding
+     * @throws \DrdPlus\CurrentProperties\Exceptions\UnknownWeaponHolding
      * @throws \DrdPlus\CurrentProperties\Exceptions\NoHandLeftForShield
      * @throws \Granam\Boolean\Tools\Exceptions\WrongParameterType
      */
@@ -140,10 +140,11 @@ class FightProperties extends StrictObject
         $this->enemyIsFasterThanYou = ToBoolean::toBoolean($enemyIsFasterThanYou);
         $this->guardWornBodyArmorWearable();
         $this->guardWornHelmWearable();
+        $this->guardKnownHolding();
         $this->guardHoldingCompatibleWithWeaponlike();
         $this->guardCombatActionsCompatibleWithWeaponlike();
-        $this->guardWeaponlikeWearable();
         $this->guardShieldWearable();
+        $this->guardWeaponlikeWearable();
     }
 
     /**
@@ -170,6 +171,20 @@ class FightProperties extends StrictObject
             $this->currentProperties->getSize(),
             $this->tables->getArmourer()
         );
+    }
+
+    /**
+     * @throws Exceptions\UnknownWeaponHolding
+     */
+    private function guardKnownHolding()
+    {
+        if (!$this->weaponlikeHolding->holdsByMainHand() && !$this->weaponlikeHolding->holdsByOffhand()
+            && !$this->weaponlikeHolding->holdsByTwoHands()
+        ) {
+            throw new Exceptions\UnknownWeaponHolding(
+                "Given holding {$this->weaponlikeHolding} is strange"
+            );
+        }
     }
 
     /**
@@ -219,7 +234,6 @@ class FightProperties extends StrictObject
 
     /**
      * @throws \DrdPlus\CurrentProperties\Exceptions\CanNotUseArmamentBecauseOfMissingStrength
-     * @throws \DrdPlus\CurrentProperties\Exceptions\UnknownWeaponOrShieldHolding
      */
     private function guardWeaponlikeWearable()
     {
@@ -228,7 +242,6 @@ class FightProperties extends StrictObject
 
     /**
      * @throws \DrdPlus\CurrentProperties\Exceptions\CanNotUseArmamentBecauseOfMissingStrength
-     * @throws \DrdPlus\CurrentProperties\Exceptions\UnknownWeaponOrShieldHolding
      * @throws \DrdPlus\CurrentProperties\Exceptions\NoHandLeftForShield
      */
     private function guardShieldWearable()
@@ -253,7 +266,6 @@ class FightProperties extends StrictObject
 
     /**
      * @return Strength
-     * @throws \DrdPlus\CurrentProperties\Exceptions\UnknownWeaponOrShieldHolding
      */
     private function getStrengthForWeaponlike()
     {
@@ -267,20 +279,9 @@ class FightProperties extends StrictObject
      * @param WeaponlikeCode $weaponOrShield
      * @param ItemHoldingCode $holding
      * @return Strength
-     * @throws \DrdPlus\CurrentProperties\Exceptions\UnknownWeaponOrShieldHolding
      */
     private function getStrengthForWeaponOrShield(WeaponlikeCode $weaponOrShield, ItemHoldingCode $holding)
     {
-        if ($holding->holdsByTwoHands()) {
-            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-            if ($this->tables->getArmourer()->isTwoHandedOnly($weaponOrShield)) {
-                // it is both-hands only weapon, can NOT count +2 bonus
-                return $this->currentProperties->getStrengthForMainHandOnly();
-            }
-            // if one-handed is kept by both hands, the required strength is lower (fighter strength is higher respectively)
-            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-            return $this->currentProperties->getStrengthForMainHandOnly()->add(2);
-        }
         if ($holding->holdsByMainHand()) {
             return $this->currentProperties->getStrengthForMainHandOnly();
         }
@@ -288,15 +289,20 @@ class FightProperties extends StrictObject
             // your less-dominant hand is weaker (try it)
             return $this->currentProperties->getStrengthForOffhandOnly();
         }
-        throw new Exceptions\UnknownWeaponOrShieldHolding(
-            "Do not know how to use {$weaponOrShield} when holding it like {$holding}"
-        );
+        // two hands holding
+        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+        if ($this->tables->getArmourer()->isTwoHandedOnly($weaponOrShield)) {
+            // it is both-hands only weapon, can NOT count +2 bonus
+            return $this->currentProperties->getStrengthForMainHandOnly();
+        }
+        // if one-handed is kept by both hands, the required strength is lower (fighter strength is higher respectively)
+        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+        return $this->currentProperties->getStrengthForMainHandOnly()->add(2);
     }
 
     /**
      * @return Strength
      * @throws \DrdPlus\CurrentProperties\Exceptions\NoHandLeftForShield
-     * @throws \DrdPlus\CurrentProperties\Exceptions\UnknownWeaponOrShieldHolding
      */
     private function getStrengthForShield()
     {
@@ -308,7 +314,6 @@ class FightProperties extends StrictObject
      *
      * @return ItemHoldingCode
      * @throws \DrdPlus\CurrentProperties\Exceptions\NoHandLeftForShield
-     * @throws \DrdPlus\CurrentProperties\Exceptions\UnknownWeaponOrShieldHolding
      */
     private function getShieldHolding()
     {
@@ -318,16 +323,12 @@ class FightProperties extends StrictObject
         if ($this->weaponlikeHolding->holdsByOffhand()) {
             return ItemHoldingCode::getIt(ItemHoldingCode::MAIN_HAND);
         }
-        if ($this->weaponlikeHolding->holdsByTwoHands()) {
-            if ($this->shield->isUnarmed()) {
-                return ItemHoldingCode::getIt(ItemHoldingCode::OFFHAND); // does not matter for no shield in fact
-            }
-            throw new Exceptions\NoHandLeftForShield(
-                "Can not hold {$this->shield} when holding {$this->weaponlike} like {$this->weaponlikeHolding}"
-            );
+        // two hands holding
+        if ($this->shield->getValue() === ShieldCode::WITHOUT_SHIELD) {
+            return ItemHoldingCode::getIt(ItemHoldingCode::MAIN_HAND);
         }
-        throw new Exceptions\UnknownWeaponOrShieldHolding(
-            "Do not know how to use {$this->shield} when holding {$this->weaponlike} like {$this->weaponlikeHolding}"
+        throw new Exceptions\NoHandLeftForShield(
+            "Can not hold {$this->shield} when holding {$this->weaponlike} with {$this->weaponlikeHolding}"
         );
     }
 
