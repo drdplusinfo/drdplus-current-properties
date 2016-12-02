@@ -16,6 +16,7 @@ use DrdPlus\CurrentProperties\CombatActions;
 use DrdPlus\CurrentProperties\CurrentProperties;
 use DrdPlus\CurrentProperties\FightProperties;
 use DrdPlus\Properties\Base\Agility;
+use DrdPlus\Properties\Base\Knack;
 use DrdPlus\Properties\Base\Strength;
 use DrdPlus\Properties\Body\Height;
 use DrdPlus\Properties\Body\Size;
@@ -27,6 +28,7 @@ use DrdPlus\Properties\Combat\EncounterRange;
 use DrdPlus\Properties\Combat\FightNumber;
 use DrdPlus\Properties\Combat\LoadingInRounds;
 use DrdPlus\Properties\Combat\MaximalRange;
+use DrdPlus\Properties\Combat\Shooting;
 use DrdPlus\Properties\Derived\Speed;
 use DrdPlus\Skills\Skills;
 use DrdPlus\Tables\Actions\CombatActionsWithWeaponTypeCompatibilityTable;
@@ -49,20 +51,22 @@ class FightPropertiesTest extends TestWithMockery
      * @param bool $holdWeaponByTwoHands
      * @param bool $weaponIsInMainHand
      * @param bool $weaponIsShield
+     * @param bool $weaponIsShooting
      */
     public function I_can_use_it(
         $enemyIsFasterThanYou,
         $weaponIsTwoHandedOnly,
         $holdWeaponByTwoHands,
         $weaponIsInMainHand,
-        $weaponIsShield
+        $weaponIsShield,
+        $weaponIsShooting
     )
     {
         $armourer = $this->createArmourer();
 
         $weaponlikeCode = $weaponIsShield
             ? ShieldCode::getIt(ShieldCode::PAVISE)
-            : $this->createWeapon(MeleeWeaponCode::CUDGEL, false /* not shooting */);
+            : $this->createWeapon(MeleeWeaponCode::CUDGEL, $weaponIsShooting);
         $strengthForMainHandOnly = Strength::getIt(987);
         $strengthForOffhandOnly = Strength::getIt(654);
         $baseStrengthForWeapon = $weaponIsInMainHand || $holdWeaponByTwoHands
@@ -92,6 +96,7 @@ class FightPropertiesTest extends TestWithMockery
             $speed = $this->createSpeed()
         );
         $this->addAgility($currentProperties, Agility::getIt(321));
+        $this->addKnack($currentProperties, Knack::getIt(7193));
         $this->addHeight($currentProperties, $this->createHeight(255));
 
         $wornBodyArmor = BodyArmorCode::getIt(BodyArmorCode::HOBNAILED_ARMOR);
@@ -240,6 +245,7 @@ class FightPropertiesTest extends TestWithMockery
         $this->I_can_get_expected_attack_number(
             $fightProperties,
             $currentProperties,
+            $weaponIsShooting,
             $attackNumberMalusByStrengthWithWeapon,
             $attackNumberMalusBySkillsWithWeapon,
             $offensiveness,
@@ -278,12 +284,12 @@ class FightPropertiesTest extends TestWithMockery
 
     public function provideUsageCombinations()
     {
-        // enemy is faster than you, weapon is two handed only, holds weapon by two hands, weapon in main hand, weapon is shield
+        // enemy is faster than you, weapon is two handed only, holds weapon by two hands, weapon in main hand, weapon is shield, weapon is shooting
         return [
-            [true, false, false, true, false],
-            [true, false, false, false, true],
-            [false, false, true, true, false],
-            [false, true, true, false, true],
+            [true, false, false, true, false, false],
+            [true, false, false, false, true, false],
+            [false, false, true, true, false, true],
+            [false, true, true, false, true, false],
         ];
     }
 
@@ -312,7 +318,7 @@ class FightPropertiesTest extends TestWithMockery
         $fightNumberMalusFromBodyArmor,
         $fightNumberMalusFromHelm,
         $fightNumberMalusFromShield,
-        $fightNumberMalusFromShieldAsWeapon,
+        $fightNumberMalusFromShieldAsWeapon, // this is conditioned - mostly zero
         $weaponLength,
         $shieldLength,
         $combatActionsFightNumberModifier
@@ -329,7 +335,7 @@ class FightPropertiesTest extends TestWithMockery
                 + $fightNumberMalusFromBodyArmor
                 + $fightNumberMalusFromHelm
                 + $fightNumberMalusFromShield
-                + $fightNumberMalusFromShieldAsWeapon
+                + $fightNumberMalusFromShieldAsWeapon // this is conditioned - mostly zero
                 + max($weaponLength, $shieldLength)
                 + $combatActionsFightNumberModifier
             );
@@ -339,6 +345,7 @@ class FightPropertiesTest extends TestWithMockery
     /**
      * @param FightProperties $fightProperties
      * @param CurrentProperties $currentProperties
+     * @param bool $weaponIsRanged
      * @param int $attackNumberMalusByStrengthWithWeapon
      * @param int $attackNumberMalusBySkillsWithWeapon
      * @param int $offensiveness
@@ -347,6 +354,7 @@ class FightPropertiesTest extends TestWithMockery
     private function I_can_get_expected_attack_number(
         FightProperties $fightProperties,
         CurrentProperties $currentProperties,
+        $weaponIsRanged,
         $attackNumberMalusByStrengthWithWeapon,
         $attackNumberMalusBySkillsWithWeapon,
         $offensiveness,
@@ -356,13 +364,15 @@ class FightPropertiesTest extends TestWithMockery
         $attackNumber = $fightProperties->getAttackNumber($this->createDistance(0));
         self::assertInstanceOf(AttackNumber::class, $attackNumber);
 
-        $expectedAttackNumber = AttackNumber::createFromAttack(new Attack($currentProperties->getAgility()))
-            ->add(
-                $attackNumberMalusByStrengthWithWeapon
-                + $attackNumberMalusBySkillsWithWeapon
-                + $offensiveness
-                + $combatActionsAttackNumberModifier
-            );
+        $expectedBaseAttackNumber = $weaponIsRanged
+            ? AttackNumber::createFromShooting(new Shooting($currentProperties->getKnack()))
+            : AttackNumber::createFromAttack(new Attack($currentProperties->getAgility()));
+        $expectedAttackNumber = $expectedBaseAttackNumber->add(
+            $attackNumberMalusByStrengthWithWeapon
+            + $attackNumberMalusBySkillsWithWeapon
+            + $offensiveness
+            + $combatActionsAttackNumberModifier
+        );
         self::assertSame($expectedAttackNumber->getValue(), $attackNumber->getValue());
     }
 
@@ -733,6 +743,12 @@ class FightPropertiesTest extends TestWithMockery
     {
         $mock->shouldReceive('getAgility')
             ->andReturn($agility);
+    }
+
+    private function addKnack(\Mockery\MockInterface $mock, Knack $knack)
+    {
+        $mock->shouldReceive('getKnack')
+            ->andReturn($knack);
     }
 
     private function addHeight(\Mockery\MockInterface $mock, Height $height)
