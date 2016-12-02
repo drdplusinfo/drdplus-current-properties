@@ -48,17 +48,21 @@ class FightPropertiesTest extends TestWithMockery
      * @param bool $weaponIsTwoHandedOnly
      * @param bool $holdWeaponByTwoHands
      * @param bool $weaponIsInMainHand
+     * @param bool $weaponIsShield
      */
     public function I_can_use_it(
         $enemyIsFasterThanYou,
         $weaponIsTwoHandedOnly,
         $holdWeaponByTwoHands,
-        $weaponIsInMainHand
+        $weaponIsInMainHand,
+        $weaponIsShield
     )
     {
         $armourer = $this->createArmourer();
 
-        $weaponlikeCode = $this->createWeapon(MeleeWeaponCode::CUDGEL, false /* not shooting */);
+        $weaponlikeCode = $weaponIsShield
+            ? ShieldCode::getIt(ShieldCode::PAVISE)
+            : $this->createWeapon(MeleeWeaponCode::CUDGEL, false /* not shooting */);
         $strengthForMainHandOnly = Strength::getIt(987);
         $strengthForOffhandOnly = Strength::getIt(654);
         $baseStrengthForWeapon = $weaponIsInMainHand || $holdWeaponByTwoHands
@@ -85,7 +89,7 @@ class FightPropertiesTest extends TestWithMockery
             $size,
             $strengthForMainHandOnly,
             $strengthForOffhandOnly,
-            $speed = $this->mockery(Speed::class)
+            $speed = $this->createSpeed()
         );
         $this->addAgility($currentProperties, Agility::getIt(321));
         $this->addHeight($currentProperties, $this->createHeight(255));
@@ -131,6 +135,14 @@ class FightPropertiesTest extends TestWithMockery
         $this->addBaseOfWoundsModifierFromActions($combatActions, false /* weapon is not crushing */, $baseOfWoundsModifierFromActions = -1357);
 
         // fight number
+        $fightsWithTwoWeapons = false;
+        $this->addFightNumberMalusFromWeaponlikeBySkills(
+            $skills,
+            $weaponlikeCode,
+            $missingWeaponSkillsTable,
+            $fightsWithTwoWeapons,
+            $fightNumberMalusFromWeapon = 44
+        );
         $this->addFightNumberMalusByStrengthWithWeaponOrShield(
             $armourer,
             $weaponlikeCode,
@@ -151,15 +163,9 @@ class FightPropertiesTest extends TestWithMockery
             $wornHelm,
             $fightNumberMalusFromHelm = 22,
             $shieldCode,
-            $fightNumberMalusFromShield = 33
-        );
-        $fightsWithTwoWeapons = false;
-        $this->addFightNumberMalusFromWeaponlikeBySkills(
-            $skills,
-            $weaponlikeCode,
-            $missingWeaponSkillsTable,
-            $fightsWithTwoWeapons,
-            $fightNumberMalusFromWeapon = 44
+            $fightNumberMalusFromShield = 33,
+            $weaponIsShield ? $weaponlikeCode : null,
+            $fightNumberMalusFromShieldAsWeapon = $weaponIsShield ? -4518 : 0
         );
         $this->addFightNumberBonusByWeaponlikeLength($armourer, $weaponlikeCode, $weaponLength = 55, $shieldCode, $shieldLength = 66);
         $this->addCombatActionsFightNumber($combatActions, $combatActionsFightNumberModifier = 777);
@@ -171,20 +177,24 @@ class FightPropertiesTest extends TestWithMockery
         $this->addDefenseNumberFromActions($combatActions, $enemyIsFasterThanYou, $defenseNumberModifierFromActions = -155157);
         $this->addDefenseNumberMalusByStrength($armourer, $weaponlikeCode, $strengthForWeapon, $defenseNumberMalusByStrengthWithWeapon = -518415);
         $this->addCoverOf($armourer, $weaponlikeCode, $coverOfWeapon = 6511);
-        $this->addSkillsMalusToCoverWithWeapon(
-            $skills,
-            $weaponlikeCode,
-            $missingWeaponSkillsTable,
-            $fightsWithTwoWeapons,
-            $skillsMalusToCoverWithWeapon = -551514
-        );
-        $this->addDefenseNumberMalusByStrength($armourer, $shieldCode, $strengthForShield, $defenseNumberMalusByStrengthWithShield = -1640);
-        $this->addCoverOf($armourer, $shieldCode, $coverOfShield = 712479);
         $this->addSkillsMalusToCoverWithShield(
             $skills,
             $missingShieldSkillsTable,
             $skillsMalusToCoverWithShield = -71810482
         );
+        if ($weaponIsShield) {
+            $skillsMalusToCoverWithWeapon = $skillsMalusToCoverWithShield;
+        } else {
+            $this->addSkillsMalusToCoverWithWeapon(
+                $skills,
+                $weaponlikeCode,
+                $missingWeaponSkillsTable,
+                $fightsWithTwoWeapons,
+                $skillsMalusToCoverWithWeapon = -551514
+            );
+        }
+        $this->addDefenseNumberMalusByStrength($armourer, $shieldCode, $strengthForShield, $defenseNumberMalusByStrengthWithShield = -1640);
+        $this->addCoverOf($armourer, $shieldCode, $coverOfShield = 712479);
 
         // moved distance
         $this->addActionsSpeedModifier($combatActions, $combatActionsSpeedModifier = 0);
@@ -221,6 +231,7 @@ class FightPropertiesTest extends TestWithMockery
             $fightNumberMalusFromBodyArmor,
             $fightNumberMalusFromHelm,
             $fightNumberMalusFromShield,
+            $fightNumberMalusFromShieldAsWeapon, // conditioned - mostly zero
             $weaponLength,
             $shieldLength,
             $combatActionsFightNumberModifier
@@ -267,12 +278,12 @@ class FightPropertiesTest extends TestWithMockery
 
     public function provideUsageCombinations()
     {
-        // enemy is faster than you, weapon is two handed only, holds weapon by two hands, weapon in main hand
+        // enemy is faster than you, weapon is two handed only, holds weapon by two hands, weapon in main hand, weapon is shield
         return [
-            [true, false, false, true],
-            [true, false, false, false],
-            [false, false, true, true],
-            [false, true, true, false],
+            [true, false, false, true, false],
+            [true, false, false, false, true],
+            [false, false, true, true, false],
+            [false, true, true, false, true],
         ];
     }
 
@@ -286,6 +297,7 @@ class FightPropertiesTest extends TestWithMockery
      * @param int $fightNumberMalusFromBodyArmor
      * @param int $fightNumberMalusFromHelm
      * @param int $fightNumberMalusFromShield
+     * @param int $fightNumberMalusFromShieldAsWeapon
      * @param int $weaponLength
      * @param int $shieldLength
      * @param int $combatActionsFightNumberModifier
@@ -300,6 +312,7 @@ class FightPropertiesTest extends TestWithMockery
         $fightNumberMalusFromBodyArmor,
         $fightNumberMalusFromHelm,
         $fightNumberMalusFromShield,
+        $fightNumberMalusFromShieldAsWeapon,
         $weaponLength,
         $shieldLength,
         $combatActionsFightNumberModifier
@@ -316,6 +329,7 @@ class FightPropertiesTest extends TestWithMockery
                 + $fightNumberMalusFromBodyArmor
                 + $fightNumberMalusFromHelm
                 + $fightNumberMalusFromShield
+                + $fightNumberMalusFromShieldAsWeapon
                 + max($weaponLength, $shieldLength)
                 + $combatActionsFightNumberModifier
             );
@@ -454,7 +468,8 @@ class FightPropertiesTest extends TestWithMockery
         );
         self::assertSame(
             $expectedDefenseNumberWithWeapon->getValue(),
-            $fightProperties->getDefenseNumberWithWeaponlike()->getValue()
+            $fightProperties->getDefenseNumberWithWeaponlike()->getValue(),
+            "Expected defense number with weapon to be {$expectedDefenseNumberWithWeapon->getValue()}"
         );
 
         $expectedDefenseNumberWithShield = $expectedDefenseNumber->add(
@@ -728,7 +743,7 @@ class FightPropertiesTest extends TestWithMockery
 
     /**
      * @param $value
-     * @return Height
+     * @return Height|\Mockery\MockInterface
      */
     private function createHeight($value)
     {
@@ -974,6 +989,8 @@ class FightPropertiesTest extends TestWithMockery
      * @param $malusToFightNumberWithHelm
      * @param ShieldCode $shieldCode
      * @param $malusToFightNumberWithShield
+     * @param ShieldCode $shieldAsWeapon = null
+     * @param int $malusToFightNumberWithShieldAsWeapon = null
      */
     private function addFightNumberMalusFromProtectivesBySkills(
         Skills $skills,
@@ -983,7 +1000,9 @@ class FightPropertiesTest extends TestWithMockery
         HelmCode $helmCode,
         $malusToFightNumberWithHelm,
         ShieldCode $shieldCode,
-        $malusToFightNumberWithShield
+        $malusToFightNumberWithShield,
+        ShieldCode $shieldAsWeapon = null,
+        $malusToFightNumberWithShieldAsWeapon = null
     )
     {
         $skills->shouldReceive('getMalusToFightNumberWithProtective')
@@ -995,6 +1014,11 @@ class FightPropertiesTest extends TestWithMockery
         $skills->shouldReceive('getMalusToFightNumberWithProtective')
             ->with($shieldCode, $armourer)
             ->andReturn($malusToFightNumberWithShield);
+        if ($shieldAsWeapon) {
+            $skills->shouldReceive('getMalusToFightNumberWithProtective')
+                ->with($shieldAsWeapon, $armourer)
+                ->andReturn($malusToFightNumberWithShieldAsWeapon);
+        }
     }
 
     /**
@@ -1120,6 +1144,14 @@ class FightPropertiesTest extends TestWithMockery
     {
         $combatActions->shouldReceive('getSpeedModifier')
             ->andReturn($speedModifier);
+    }
+
+    /**
+     * @return \Mockery\MockInterface|Speed
+     */
+    private function createSpeed()
+    {
+        return $this->mockery(Speed::class);
     }
 
     // NEGATIVE TESTS

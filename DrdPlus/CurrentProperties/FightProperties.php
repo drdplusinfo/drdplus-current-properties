@@ -429,7 +429,7 @@ class FightProperties extends StrictObject
             $this->shield,
             $this->tables->getArmourer()
         );
-        // rare situation when you have two shields and uses one as a weapon (or a shield both as a shield and a weapon)
+        // rare situation when you have two shields (or shield and nothing) and uses one as a weapon
         if ($this->weaponlike->isShield()) {
             /** @var ShieldCode $shieldAsWeapon */
             $shieldAsWeapon = $this->weaponlike;
