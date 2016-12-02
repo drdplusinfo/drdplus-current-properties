@@ -37,6 +37,7 @@ use DrdPlus\Tables\Armaments\Partials\WeaponlikeTable;
 use DrdPlus\Tables\Armaments\Shields\MissingShieldSkillTable;
 use DrdPlus\Tables\Armaments\Weapons\MissingWeaponSkillTable;
 use DrdPlus\Tables\Measurements\Distance\Distance;
+use DrdPlus\Tables\Measurements\Distance\DistanceTable;
 use DrdPlus\Tables\Measurements\Wounds\WoundsBonus;
 use DrdPlus\Tables\Tables;
 use Granam\Tests\Tools\TestWithMockery;
@@ -51,7 +52,8 @@ class FightPropertiesTest extends TestWithMockery
      * @param bool $holdWeaponByTwoHands
      * @param bool $weaponIsInMainHand
      * @param bool $weaponIsShield
-     * @param bool $weaponIsShooting
+     * @param bool $weaponIsShooting and ranged
+     * @param int $targetDistanceInMeters
      */
     public function I_can_use_it(
         $enemyIsFasterThanYou,
@@ -59,7 +61,8 @@ class FightPropertiesTest extends TestWithMockery
         $holdWeaponByTwoHands,
         $weaponIsInMainHand,
         $weaponIsShield,
-        $weaponIsShooting
+        $weaponIsShooting, // and implicitly ranged
+        $targetDistanceInMeters
     )
     {
         $armourer = $this->createArmourer();
@@ -242,6 +245,17 @@ class FightPropertiesTest extends TestWithMockery
             $combatActionsFightNumberModifier
         );
 
+        $distance = new Distance($targetDistanceInMeters, Distance::M, new DistanceTable());
+        $attackNumberModifierByDistance = 0;
+        if ($weaponIsShooting) {
+            $this->addAttackNumberModifierByDistance(
+                $distance,
+                $armourer,
+                $fightProperties->getEncounterRange(),
+                $fightProperties->getMaximalRange(),
+                $attackNumberModifierByDistance = -8218
+            );
+        }
         $this->I_can_get_expected_attack_number(
             $fightProperties,
             $currentProperties,
@@ -249,7 +263,9 @@ class FightPropertiesTest extends TestWithMockery
             $attackNumberMalusByStrengthWithWeapon,
             $attackNumberMalusBySkillsWithWeapon,
             $offensiveness,
-            $combatActionsAttackNumberModifier
+            $combatActionsAttackNumberModifier,
+            $distance,
+            $attackNumberModifierByDistance
         );
 
         $this->I_can_get_expected_base_of_wounds(
@@ -284,12 +300,13 @@ class FightPropertiesTest extends TestWithMockery
 
     public function provideUsageCombinations()
     {
-        // enemy is faster than you, weapon is two handed only, holds weapon by two hands, weapon in main hand, weapon is shield, weapon is shooting
+        // enemy is faster than you, weapon is two handed only, holds weapon by two hands, weapon in main hand, weapon is shield, weapon is shooting, target distance in meters
         return [
-            [true, false, false, true, false, false],
-            [true, false, false, false, true, false],
-            [false, false, true, true, false, true],
-            [false, true, true, false, true, false],
+            [true, false, false, true, false, false, 0],
+            [true, false, false, false, true, false, 14789 /* distance should be ignored for non-ranged weapon */],
+            [false, false, true, true, false, true, 1],
+            [false, false, true, true, false, true, 78515],
+            [false, true, true, false, true, false, 0],
         ];
     }
 
@@ -350,6 +367,8 @@ class FightPropertiesTest extends TestWithMockery
      * @param int $attackNumberMalusBySkillsWithWeapon
      * @param int $offensiveness
      * @param int $combatActionsAttackNumberModifier
+     * @param Distance $distance
+     * @param int $attackNumberModifierByDistance
      */
     private function I_can_get_expected_attack_number(
         FightProperties $fightProperties,
@@ -358,10 +377,12 @@ class FightPropertiesTest extends TestWithMockery
         $attackNumberMalusByStrengthWithWeapon,
         $attackNumberMalusBySkillsWithWeapon,
         $offensiveness,
-        $combatActionsAttackNumberModifier
+        $combatActionsAttackNumberModifier,
+        Distance $distance,
+        $attackNumberModifierByDistance
     )
     {
-        $attackNumber = $fightProperties->getAttackNumber($this->createDistance(0));
+        $attackNumber = $fightProperties->getAttackNumber($distance);
         self::assertInstanceOf(AttackNumber::class, $attackNumber);
 
         $expectedBaseAttackNumber = $weaponIsRanged
@@ -372,8 +393,13 @@ class FightPropertiesTest extends TestWithMockery
             + $attackNumberMalusBySkillsWithWeapon
             + $offensiveness
             + $combatActionsAttackNumberModifier
+            + $attackNumberModifierByDistance
         );
-        self::assertSame($expectedAttackNumber->getValue(), $attackNumber->getValue());
+        self::assertSame(
+            $expectedAttackNumber->getValue(),
+            $attackNumber->getValue(),
+            "Expected attack number {$expectedAttackNumber} on distance {$distance}"
+        );
     }
 
     /**
@@ -514,19 +540,6 @@ class FightPropertiesTest extends TestWithMockery
         self::assertInstanceOf(Distance::class, $movedDistance);
         self::assertSame(0.0, $movedDistance->getValue());
         self::assertSame($movedDistance, $fightProperties->getMovedDistance(), 'Same instances expected');
-    }
-
-    /**
-     * @param int $value
-     * @return \Mockery\MockInterface|Distance
-     */
-    private function createDistance($value)
-    {
-        $distance = $this->mockery(Distance::class);
-        $distance->shouldReceive('getValue')
-            ->andReturn($value);
-
-        return $distance;
     }
 
     /**
@@ -705,6 +718,8 @@ class FightPropertiesTest extends TestWithMockery
         $weaponlikeCode->shouldReceive('isShield')
             ->andReturn(false);
         $weaponlikeCode->shouldReceive('isShootingWeapon')
+            ->andReturn($isShooting);
+        $weaponlikeCode->shouldReceive('isRanged')
             ->andReturn($isShooting);
 
         return $weaponlikeCode;
@@ -1160,6 +1175,26 @@ class FightPropertiesTest extends TestWithMockery
     {
         $combatActions->shouldReceive('getSpeedModifier')
             ->andReturn($speedModifier);
+    }
+
+    /**
+     * @param Distance $distance
+     * @param Armourer|\Mockery\MockInterface $armourer
+     * @param EncounterRange $encounterRange
+     * @param MaximalRange $maximalRange
+     * @param int $modifierByDistance
+     */
+    private function addAttackNumberModifierByDistance(
+        Distance $distance,
+        Armourer $armourer,
+        EncounterRange $encounterRange,
+        MaximalRange $maximalRange,
+        $modifierByDistance
+    )
+    {
+        $armourer->shouldReceive('getAttackNumberModifierByDistance')
+            ->with($distance, $encounterRange, $maximalRange)
+            ->andReturn($modifierByDistance);
     }
 
     /**
