@@ -7,7 +7,6 @@ use DrdPlus\Codes\Armaments\HelmCode;
 use DrdPlus\Codes\Armaments\MeleeWeaponCode;
 use DrdPlus\Codes\Armaments\RangedWeaponCode;
 use DrdPlus\Codes\Armaments\ShieldCode;
-use DrdPlus\Codes\Armaments\WeaponCode;
 use DrdPlus\Codes\Armaments\WeaponlikeCode;
 use DrdPlus\Codes\ItemHoldingCode;
 use DrdPlus\Codes\ProfessionCode;
@@ -204,6 +203,12 @@ class FightPropertiesTest extends TestWithMockery
         $this->addDefenseNumberMalusByStrength($armourer, $shieldCode, $strengthForShield, $defenseNumberMalusByStrengthWithShield = -1640);
         $this->addCoverOf($armourer, $shieldCode, $coverOfShield = 712479);
 
+        // loading in rounds
+        $expectedLoadingInRounds = 0;
+        if ($weaponIsShooting) {
+            $this->addLoadingInRoundsByStrengthWithRangedWeapon($armourer, $weaponlikeCode, $strengthForWeapon, $expectedLoadingInRounds = 56186);
+        }
+
         // moved distance
         $this->addActionsSpeedModifier($combatActions, $combatActionsSpeedModifier = 0);
         if ($holdWeaponByTwoHands) {
@@ -276,11 +281,11 @@ class FightPropertiesTest extends TestWithMockery
             $baseOfWoundsModifierFromActions
         );
 
-        $this->I_can_get_expected_loading_in_rounds($fightProperties, $weaponlikeCode);
+        $this->I_can_get_expected_loading_in_rounds($fightProperties, $expectedLoadingInRounds);
 
         $this->I_can_get_expected_encounter_range($fightProperties, $encounterRangeValue);
 
-        $this->I_can_get_expected_maximal_range($fightProperties, $weaponlikeCode);
+        $this->I_can_get_expected_maximal_range($fightProperties, $weaponIsShooting);
 
         $this->I_can_get_defense_number(
             $fightProperties,
@@ -427,14 +432,13 @@ class FightPropertiesTest extends TestWithMockery
 
     /**
      * @param FightProperties $fightProperties
-     * @param WeaponlikeCode $weaponlikeCode
+     * @param int $expectedLoadingInRounds
      */
-    private function I_can_get_expected_loading_in_rounds(FightProperties $fightProperties, WeaponlikeCode $weaponlikeCode)
+    private function I_can_get_expected_loading_in_rounds(FightProperties $fightProperties, $expectedLoadingInRounds)
     {
         $loadingInRounds = $fightProperties->getLoadingInRounds();
         self::assertInstanceOf(LoadingInRounds::class, $loadingInRounds);
-        self::assertNotInstanceOf(RangedWeaponCode::class, $weaponlikeCode);
-        self::assertSame(0, $loadingInRounds->getValue());
+        self::assertSame($expectedLoadingInRounds, $loadingInRounds->getValue());
         self::assertSame($loadingInRounds, $fightProperties->getLoadingInRounds(), 'Expected same instances');
     }
 
@@ -455,15 +459,20 @@ class FightPropertiesTest extends TestWithMockery
 
     /**
      * @param FightProperties $fightProperties
-     * @param WeaponlikeCode $weaponlikeCode
+     * @param bool $isRanged
      */
-    private function I_can_get_expected_maximal_range(FightProperties $fightProperties, WeaponlikeCode $weaponlikeCode)
+    private function I_can_get_expected_maximal_range(FightProperties $fightProperties, $isRanged)
     {
-        self::assertNotInstanceOf(RangedWeaponCode::class, $weaponlikeCode);
-        $expectedMaximalRange = MaximalRange::createForMeleeWeapon($fightProperties->getEncounterRange());
+        $expectedMaximalRange = $isRanged
+            ? MaximalRange::createForRangedWeapon($fightProperties->getEncounterRange())
+            : MaximalRange::createForMeleeWeapon($fightProperties->getEncounterRange());
         $maximalRange = $fightProperties->getMaximalRange();
         self::assertInstanceOf(MaximalRange::class, $maximalRange);
-        self::assertSame($expectedMaximalRange->getValue(), $maximalRange->getValue());
+        self::assertSame(
+            $expectedMaximalRange->getValue(),
+            $maximalRange->getValue(),
+            "Expected maximal range {$expectedMaximalRange->getValue()}"
+        );
         self::assertSame($maximalRange, $fightProperties->getMaximalRange(), 'Expected same instances');
     }
 
@@ -707,20 +716,20 @@ class FightPropertiesTest extends TestWithMockery
 
     /**
      * @param string $name
-     * @param bool $isShooting
-     * @return \Mockery\MockInterface|WeaponCode
+     * @param bool $isRangedAndShooting
+     * @return \Mockery\MockInterface|RangedWeaponCode|MeleeWeaponCode
      */
-    private function createWeapon($name = 'foo', $isShooting = false)
+    private function createWeapon($name = 'foo', $isRangedAndShooting = false)
     {
-        $weaponlikeCode = $this->mockery(WeaponCode::class);
+        $weaponlikeCode = $this->mockery($isRangedAndShooting ? RangedWeaponCode::class : MeleeWeaponCode::class);
         $weaponlikeCode->shouldReceive('__toString')
             ->andReturn($name);
         $weaponlikeCode->shouldReceive('isShield')
             ->andReturn(false);
         $weaponlikeCode->shouldReceive('isShootingWeapon')
-            ->andReturn($isShooting);
+            ->andReturn($isRangedAndShooting);
         $weaponlikeCode->shouldReceive('isRanged')
-            ->andReturn($isShooting);
+            ->andReturn($isRangedAndShooting);
 
         return $weaponlikeCode;
     }
@@ -945,6 +954,32 @@ class FightPropertiesTest extends TestWithMockery
         $armourer->shouldReceive('getCoverOfWeaponOrShield')
             ->with($weaponlikeCode)
             ->andReturn($coverOfWeapon);
+    }
+
+    /**
+     * @param Armourer|\Mockery\MockInterface $armourer
+     * @param WeaponlikeCode $weaponlikeCode
+     * @param Strength $expectedStrength
+     * @param int $loadingInRounds
+     */
+    private function addLoadingInRoundsByStrengthWithRangedWeapon(
+        Armourer $armourer,
+        WeaponlikeCode $weaponlikeCode,
+        Strength $expectedStrength,
+        $loadingInRounds
+    )
+    {
+        $armourer->shouldReceive('getLoadingInRoundsByStrengthWithRangedWeapon')
+            ->with($weaponlikeCode, \Mockery::type(Strength::class))
+            ->andReturnUsing(function (RangedWeaponCode $weaponlikeCode, Strength $strength) use ($expectedStrength, $loadingInRounds) {
+                self::assertSame(
+                    $expectedStrength->getValue(),
+                    $strength->getValue(),
+                    "Expected strength {$expectedStrength} for weapon {$weaponlikeCode}"
+                );
+
+                return $loadingInRounds;
+            });
     }
 
     /**

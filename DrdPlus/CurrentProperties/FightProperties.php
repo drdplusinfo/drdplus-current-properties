@@ -643,7 +643,7 @@ class FightProperties extends StrictObject
             if ($this->weaponlike instanceof RangedWeaponCode) {
                 $this->maximalRange = MaximalRange::createForRangedWeapon($this->getEncounterRange());
             } else {
-                $this->maximalRange = MaximalRange::createForMeleeWeapon($this->getEncounterRange()); // no change for melee weapons
+                $this->maximalRange = MaximalRange::createForMeleeWeapon($this->getEncounterRange()); // encounter = maximal for melee weapons
             }
         }
 
