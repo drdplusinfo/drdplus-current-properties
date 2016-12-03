@@ -36,6 +36,7 @@ use DrdPlus\Tables\Armaments\Partials\WeaponlikeTable;
 use DrdPlus\Tables\Armaments\Shields\MissingShieldSkillTable;
 use DrdPlus\Tables\Armaments\Weapons\MissingWeaponSkillTable;
 use DrdPlus\Tables\Measurements\Distance\Distance;
+use DrdPlus\Tables\Measurements\Distance\DistanceBonus;
 use DrdPlus\Tables\Measurements\Distance\DistanceTable;
 use DrdPlus\Tables\Measurements\Wounds\WoundsBonus;
 use DrdPlus\Tables\Tables;
@@ -53,6 +54,7 @@ class FightPropertiesTest extends TestWithMockery
      * @param bool $weaponIsShield
      * @param bool $weaponIsShooting and ranged
      * @param int $targetDistanceInMeters
+     * @param int $combatActionsSpeedModifier
      */
     public function I_can_use_it(
         $enemyIsFasterThanYou,
@@ -61,7 +63,8 @@ class FightPropertiesTest extends TestWithMockery
         $weaponIsInMainHand,
         $weaponIsShield,
         $weaponIsShooting, // and implicitly ranged
-        $targetDistanceInMeters
+        $targetDistanceInMeters,
+        $combatActionsSpeedModifier
     )
     {
         $armourer = $this->createArmourer();
@@ -95,7 +98,7 @@ class FightPropertiesTest extends TestWithMockery
             $size,
             $strengthForMainHandOnly,
             $strengthForOffhandOnly,
-            $speed = $this->createSpeed()
+            $speed = $this->createSpeed(4913)
         );
         $this->addAgility($currentProperties, Agility::getIt(321));
         $this->addKnack($currentProperties, Knack::getIt(7193));
@@ -210,7 +213,13 @@ class FightPropertiesTest extends TestWithMockery
         }
 
         // moved distance
-        $this->addActionsSpeedModifier($combatActions, $combatActionsSpeedModifier = 0);
+        $this->addActionsSpeedModifier($combatActions, $combatActionsSpeedModifier);
+        if ($combatActionsSpeedModifier !== 0) {
+            $this->addDistanceTable($tables, $speed, $combatActionsSpeedModifier, $expectedMovedDistance = $this->createDistance(123456));
+        } else {
+            $expectedMovedDistance = $this->createDistance(0.0);
+        }
+
         if ($holdWeaponByTwoHands) {
             $weaponHolding = ItemHoldingCode::getIt(ItemHoldingCode::TWO_HANDS);
         } elseif ($weaponIsInMainHand) {
@@ -300,18 +309,19 @@ class FightPropertiesTest extends TestWithMockery
             $size
         );
 
-        $this->I_can_get_moved_distance($fightProperties, $combatActionsSpeedModifier);
+        $this->I_can_get_moved_distance($fightProperties, $expectedMovedDistance);
     }
 
     public function provideUsageCombinations()
     {
-        // enemy is faster than you, weapon is two handed only, holds weapon by two hands, weapon in main hand, weapon is shield, weapon is shooting, target distance in meters
+        // enemy is faster than you, weapon is two handed only, holds weapon by two hands, weapon in main hand,
+        // weapon is shield, weapon is shooting, target distance in meters, speed modifier from combat actions
         return [
-            [true, false, false, true, false, false, 0],
-            [true, false, false, false, true, false, 14789 /* distance should be ignored for non-ranged weapon */],
-            [false, false, true, true, false, true, 1],
-            [false, false, true, true, false, true, 78515],
-            [false, true, true, false, true, false, 0],
+            [true, false, false, true, false, false, 0, 0],
+            [true, false, false, false, true, false, 14789 /* distance should be ignored for non-ranged weapon */, 4596],
+            [false, false, true, true, false, true, 1, -741],
+            [false, false, true, true, false, true, 78515, 0],
+            [false, true, true, false, true, false, 0, 1],
         ];
     }
 
@@ -540,14 +550,13 @@ class FightPropertiesTest extends TestWithMockery
 
     /**
      * @param FightProperties $fightProperties
-     * @param int $combatActionsSpeedModifier
+     * @param Distance $expectedMovedDistance
      */
-    private function I_can_get_moved_distance(FightProperties $fightProperties, $combatActionsSpeedModifier)
+    private function I_can_get_moved_distance(FightProperties $fightProperties, Distance $expectedMovedDistance)
     {
-        self::assertSame(0, $combatActionsSpeedModifier, 'Non-zero movement is not tested yet. Do it.');
         $movedDistance = $fightProperties->getMovedDistance();
         self::assertInstanceOf(Distance::class, $movedDistance);
-        self::assertSame(0.0, $movedDistance->getValue());
+        self::assertSame($expectedMovedDistance->getValue(), $movedDistance->getValue());
         self::assertSame($movedDistance, $fightProperties->getMovedDistance(), 'Same instances expected');
     }
 
@@ -1213,6 +1222,40 @@ class FightPropertiesTest extends TestWithMockery
     }
 
     /**
+     * @param Tables|\Mockery\MockInterface $tables
+     * @param Speed $speed
+     * @param int $speedModifier
+     * @param Distance $movedDistance
+     */
+    private function addDistanceTable(Tables $tables, Speed $speed, $speedModifier, Distance $movedDistance)
+    {
+        $tables->shouldReceive('getDistanceTable')
+            ->andReturn($distanceTable = $this->mockery(DistanceTable::class));
+        $distanceTable->shouldReceive('toDistance')
+            ->with(\Mockery::type(DistanceBonus::class))
+            ->andReturnUsing(function (DistanceBonus $distanceBonus) use ($speed, $speedModifier, $movedDistance) {
+                self::assertSame($distanceBonus->getValue(), $speed->getValue() + $speedModifier);
+
+                return $movedDistance;
+            });
+    }
+
+    /**
+     * @param float $value
+     * @return \Mockery\MockInterface|Distance
+     */
+    private function createDistance($value = null)
+    {
+        $distance = $this->mockery(Distance::class);
+        if ($value !== null) {
+            $distance->shouldReceive('getValue')
+                ->andReturn($value);
+        }
+
+        return $distance;
+    }
+
+    /**
      * @param Distance $distance
      * @param Armourer|\Mockery\MockInterface $armourer
      * @param EncounterRange $encounterRange
@@ -1233,11 +1276,25 @@ class FightPropertiesTest extends TestWithMockery
     }
 
     /**
+     * @param int $value
+     * @param bool $canBeIncreased
      * @return \Mockery\MockInterface|Speed
      */
-    private function createSpeed()
+    private function createSpeed($value = null, $canBeIncreased = true)
     {
-        return $this->mockery(Speed::class);
+        $speed = $this->mockery(Speed::class);
+        if ($value !== null) {
+            $speed->shouldReceive('getValue')
+                ->andReturn($value);
+        }
+        if ($canBeIncreased) {
+            $speed->shouldReceive('add')
+                ->andReturnUsing(function ($valueToAdd) use ($value) {
+                    return $this->createSpeed($value + $valueToAdd, false /* to avoid infinite loop */);
+                });
+        }
+
+        return $speed;
     }
 
     // NEGATIVE TESTS
