@@ -10,7 +10,7 @@ use DrdPlus\Codes\Armaments\ShieldCode;
 use DrdPlus\Codes\Armaments\WeaponlikeCode;
 use DrdPlus\Codes\ItemHoldingCode;
 use DrdPlus\Codes\ProfessionCode;
-use DrdPlus\Codes\WoundTypeCode;
+use DrdPlus\Codes\Body\WoundTypeCode;
 use DrdPlus\CurrentProperties\CombatActions;
 use DrdPlus\CurrentProperties\CurrentProperties;
 use DrdPlus\CurrentProperties\FightProperties;
