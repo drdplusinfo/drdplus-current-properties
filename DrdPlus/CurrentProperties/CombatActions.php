@@ -51,11 +51,11 @@ class CombatActions extends StrictObject implements \IteratorAggregate, \Countab
     {
         $sanitizedCombatActionCodes = [];
         foreach ($combatActionCodes as $combatActionCode) {
-            if (in_array((string)$combatActionCode, CombatActionCode::getCombatActionCodes(), true)) {
+            if (in_array((string)$combatActionCode, CombatActionCode::getPossibleValues(), true)) {
                 $sanitizedCombatActionCodes[] = CombatActionCode::getIt($combatActionCode);
-            } elseif (in_array((string)$combatActionCode, MeleeCombatActionCode::getMeleeCombatActionCodes(), true)) {
+            } elseif (in_array((string)$combatActionCode, MeleeCombatActionCode::getPossibleValues(), true)) {
                 $sanitizedCombatActionCodes[] = MeleeCombatActionCode::getIt($combatActionCode);
-            } elseif (in_array((string)$combatActionCode, RangedCombatActionCode::getRangedCombatActionCodes(), true)) {
+            } elseif (in_array((string)$combatActionCode, RangedCombatActionCode::getPossibleValues(), true)) {
                 $sanitizedCombatActionCodes[] = RangedCombatActionCode::getIt($combatActionCode);
             } else {
                 throw new Exceptions\UnknownCombatActionCode(
