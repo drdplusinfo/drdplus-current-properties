@@ -28,7 +28,7 @@ use DrdPlus\Properties\Derived\Toughness;
 use DrdPlus\Properties\Derived\WoundBoundary;
 use DrdPlus\PropertiesByLevels\PropertiesByLevels;
 use DrdPlus\Races\Race;
-use DrdPlus\Tables\Measurements\Weight\Weight as CargoWeight;
+use DrdPlus\Tables\Measurements\Weight\Weight;
 use DrdPlus\Tables\Tables;
 use Granam\Strict\Object\StrictObject;
 
@@ -46,7 +46,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
     private $wornBodyArmor;
     /** @var HelmCode */
     private $wornHelm;
-    /** @var CargoWeight */
+    /** @var Weight */
     private $cargoWeight;
     /** @var Tables */
     private $tables;
@@ -89,7 +89,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
      * @param Race $race
      * @param BodyArmorCode $wornBodyArmor for no armor use \DrdPlus\Codes\Armaments\BodyArmorCode::WITHOUT_ARMOR
      * @param HelmCode $wornHelm for no helm use \DrdPlus\Codes\Armaments\HelmCode::WITHOUT_HELM
-     * @param CargoWeight $cargoWeight
+     * @param Weight $cargoWeight
      * @param Tables $tables
      * @throws Exceptions\CanNotUseArmamentBecauseOfMissingStrength
      */
@@ -99,7 +99,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
         Race $race,
         BodyArmorCode $wornBodyArmor,
         HelmCode $wornHelm,
-        CargoWeight $cargoWeight,
+        Weight $cargoWeight,
         Tables $tables
     )
     {
