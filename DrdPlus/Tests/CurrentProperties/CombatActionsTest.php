@@ -305,9 +305,32 @@ class CombatActionsTest extends TestWithMockery
                 CombatActionCode::MOVE, // +8
                 CombatActionCode::RUN, // +22
             ],
-            $this->createCombatActionsCompatibilityTable($values, true)
+            $this->createCombatActionsCompatibilityTable($values, true /* just a little hack */)
         );
         self::assertSame(30, $combatActions->getSpeedModifier());
+    }
+
+    /**
+     * @test
+     */
+    public function I_can_ask_it_if_uses_simplified_lighting_rules_by_fight_actions()
+    {
+        $combatActions = new CombatActions(
+            [CombatActionCode::MOVE, CombatActionCode::SWAP_WEAPONS],
+            new CombatActionsCompatibilityTable()
+        );
+        self::assertFalse($combatActions->usesSimplifiedLightingRules());
+
+        $combatActions = new CombatActions(
+            [CombatActionCode::ATTACK_ON_DISABLED_OPPONENT, CombatActionCode::BLINDFOLD_FIGHT],
+            new CombatActionsCompatibilityTable()
+        );
+        self::assertTrue($combatActions->usesSimplifiedLightingRules());
+        $combatActions = new CombatActions(
+            [CombatActionCode::FIGHT_IN_REDUCED_VISIBILITY, CombatActionCode::SITTING_OR_ON_KNEELS],
+            new CombatActionsCompatibilityTable()
+        );
+        self::assertTrue($combatActions->usesSimplifiedLightingRules());
     }
 
     /**
@@ -335,7 +358,7 @@ class CombatActionsTest extends TestWithMockery
     /**
      * @test
      * @expectedException \DrdPlus\CurrentProperties\Exceptions\IncompatibleCombatActions
-     * @expectedExceptionMessageRegExp ~attack_on_disabled_opponent with getting_up~
+     * @expectedExceptionMessageRegExp ~'attack_on_disabled_opponent' with 'getting_up'~
      */
     public function I_can_not_combine_native_incompatible_actions()
     {

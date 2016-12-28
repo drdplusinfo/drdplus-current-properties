@@ -136,7 +136,7 @@ class CombatActions extends StrictObject implements \IteratorAggregate, \Countab
                     ', ',
                     array_map(
                         function (array $incompatiblePair) {
-                            return $incompatiblePair[0] . ' with ' . $incompatiblePair[1];
+                            return "'{$incompatiblePair[0]}' with '{$incompatiblePair[1]}'";
                         },
                         $incompatiblePairs
                     )
@@ -415,5 +415,15 @@ class CombatActions extends StrictObject implements \IteratorAggregate, \Countab
         }
 
         return $speedBonus;
+    }
+
+    /**
+     * @return bool
+     */
+    public function usesSimplifiedLightingRules()
+    {
+        // see PPH page 129 top left
+        return $this->hasAction(CombatActionCode::FIGHT_IN_REDUCED_VISIBILITY)
+            || $this->hasAction(CombatActionCode::BLINDFOLD_FIGHT);
     }
 }
