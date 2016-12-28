@@ -11,6 +11,7 @@ use DrdPlus\Codes\Armaments\WeaponlikeCode;
 use DrdPlus\Codes\ItemHoldingCode;
 use DrdPlus\Codes\ProfessionCode;
 use DrdPlus\Codes\Body\WoundTypeCode;
+use DrdPlus\Health\Inflictions\Glared;
 use DrdPlus\Properties\Base\Strength;
 use DrdPlus\Properties\Combat\Attack;
 use DrdPlus\Properties\Combat\AttackNumber;
@@ -30,6 +31,7 @@ use DrdPlus\Tables\Measurements\Distance\DistanceBonus;
 use DrdPlus\Tables\Measurements\Wounds\WoundsBonus as BaseOfWounds;
 use DrdPlus\Tables\Measurements\Wounds\WoundsBonus;
 use DrdPlus\Tables\Tables;
+use DrdPlus\Tools\Calculations\SumAndRound;
 use Granam\Boolean\Tools\ToBoolean;
 use Granam\Strict\Object\StrictObject;
 
@@ -61,6 +63,9 @@ class FightProperties extends StrictObject
     private $shield;
     /** @var bool */
     private $enemyIsFasterThanYou;
+    /** @var Glared */
+    private $glared;
+
     /** @var FightNumber */
     private $fightNumber;
     /** @var BaseOfWounds */
@@ -102,6 +107,7 @@ class FightProperties extends StrictObject
      * @param bool $fightsWithTwoWeapons
      * @param ShieldCode $shield
      * @param bool $enemyIsFasterThanYou
+     * @param Glared $glared
      * @throws \DrdPlus\CurrentProperties\Exceptions\CanNotHoldItByTwoHands
      * @throws \DrdPlus\CurrentProperties\Exceptions\CanNotHoldItByOneHand
      * @throws \DrdPlus\CurrentProperties\Exceptions\IncompatibleCombatActions
@@ -115,15 +121,16 @@ class FightProperties extends StrictObject
         CurrentProperties $currentProperties,
         CombatActions $combatActions,
         Skills $skills,
-        BodyArmorCode $wornBodyArmor,
-        HelmCode $wornHelm,
+        BodyArmorCode $wornBodyArmor, /** use @see BodyArmorCode::WITHOUT_ARMOR for no armor */
+        HelmCode $wornHelm, /** use @see HelmCode::WITHOUT_HELM for no helm */
         ProfessionCode $professionCode,
         Tables $tables,
-        WeaponlikeCode $weaponlike,
+        WeaponlikeCode $weaponlike, /** use @see MeleeWeaponCode::HAND for no weapon */
         ItemHoldingCode $weaponlikeHolding,
         $fightsWithTwoWeapons,
         ShieldCode $shield, /** use @see ShieldCode::WITHOUT_SHIELD for no shield */
-        $enemyIsFasterThanYou
+        $enemyIsFasterThanYou,
+        Glared $glared
     )
     {
         $this->currentProperties = $currentProperties;
@@ -138,6 +145,7 @@ class FightProperties extends StrictObject
         $this->combatActions = $combatActions;
         $this->shield = $shield;
         $this->enemyIsFasterThanYou = ToBoolean::toBoolean($enemyIsFasterThanYou);
+        $this->glared = $glared;
         $this->guardWornBodyArmorWearable();
         $this->guardWornHelmWearable();
         $this->guardKnownHolding();
@@ -518,6 +526,11 @@ class FightProperties extends StrictObject
         // combat actions effect
         $attackNumberModifier += $this->combatActions->getAttackNumberModifier();
 
+        if (!$this->combatActions->usesSimplifiedLightingRules() && $this->glared->getCurrentMalus() < 0) {
+            // see PPH page 129 top left
+            $attackNumberModifier += SumAndRound::half($this->glared->getCurrentMalus());
+        }
+
         // distance effect (for ranged only)
         if ($this->weaponlike->isRanged()) {
             $attackNumberModifier += $armourer->getAttackNumberModifierByDistance(
@@ -653,7 +666,7 @@ class FightProperties extends StrictObject
     // DEFENSE
 
     /**
-     * Your defense WITHOUT weapon or shield.
+     * Your defense WITHOUT weapon and shield.
      * For standard defense @see getDefenseNumberWithShield and @see getDefenseNumberWithWeaponlike
      * Note: armor affects agility (can give restriction), but does NOT affect defense number directly -
      * its protection is used after hit to lower final damage.
@@ -663,45 +676,26 @@ class FightProperties extends StrictObject
     public function getDefenseNumber()
     {
         if ($this->defenseNumber === null) {
+            $baseDefenseNumber = new DefenseNumber($this->currentProperties->getAgility());
             if ($this->enemyIsFasterThanYou) {
-                $this->defenseNumber = $this->getDefenseNumberAgainstFasterOpponent();
+                // You CAN be affected by some of your actions because someone attacked you before you finished them.
+                // Your defense WITHOUT weapon and shield.
+                $defenseNumber = $baseDefenseNumber
+                    ->add($this->combatActions->getDefenseNumberModifierAgainstFasterOpponent());
             } else {
-                $this->defenseNumber = $this->getDefenseNumberAgainstSlowerOpponent();
+                // You are NOT affected by any of your action just because someone attacked you before you are ready.
+                $defenseNumber = $baseDefenseNumber
+                    ->add($this->combatActions->getDefenseNumberModifier());
             }
+            if (!$this->combatActions->usesSimplifiedLightingRules() && $this->glared->getCurrentMalus() < 0) {
+                // see PPH page 129 top left
+                $defenseNumber = $defenseNumber->add($this->glared->getCurrentMalus());
+            }
+
+            $this->defenseNumber = $defenseNumber;
         }
 
         return $this->defenseNumber;
-    }
-
-    /**
-     * You CAN BE affected by some of your actions because someone attacked you before you finished them.
-     * Your defense WITHOUT weapon  nor shield. shield.
-     *
-     * @return DefenseNumber
-     */
-    private function getDefenseNumberAgainstFasterOpponent()
-    {
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        return $this->getBaseDefenseNumber()->add($this->combatActions->getDefenseNumberModifierAgainstFasterOpponent());
-    }
-
-    /**
-     * @return DefenseNumber
-     */
-    private function getBaseDefenseNumber()
-    {
-        return new DefenseNumber($this->currentProperties->getAgility());
-    }
-
-    /**
-     * You are NOT affected by any of your action just because someone attacked you before you are ready.
-     *
-     * @return DefenseNumber
-     */
-    private function getDefenseNumberAgainstSlowerOpponent()
-    {
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        return $this->getBaseDefenseNumber()->add($this->combatActions->getDefenseNumberModifier());
     }
 
     /**

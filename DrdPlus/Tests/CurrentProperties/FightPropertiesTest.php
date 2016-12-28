@@ -14,6 +14,7 @@ use DrdPlus\Codes\Body\WoundTypeCode;
 use DrdPlus\CurrentProperties\CombatActions;
 use DrdPlus\CurrentProperties\CurrentProperties;
 use DrdPlus\CurrentProperties\FightProperties;
+use DrdPlus\Health\Inflictions\Glared;
 use DrdPlus\Properties\Base\Agility;
 use DrdPlus\Properties\Base\Knack;
 use DrdPlus\Properties\Base\Strength;
@@ -55,6 +56,8 @@ class FightPropertiesTest extends TestWithMockery
      * @param bool $weaponIsShooting and ranged
      * @param int $targetDistanceInMeters
      * @param int $combatActionsSpeedModifier
+     * @param bool $usesSimplifiedLightingRules
+     * @param int $currentMalusFromLightingContrast
      */
     public function I_can_use_it(
         $enemyIsFasterThanYou,
@@ -64,7 +67,9 @@ class FightPropertiesTest extends TestWithMockery
         $weaponIsShield,
         $weaponIsShooting, // and implicitly ranged
         $targetDistanceInMeters,
-        $combatActionsSpeedModifier
+        $combatActionsSpeedModifier,
+        $usesSimplifiedLightingRules,
+        $currentMalusFromLightingContrast
     )
     {
         $armourer = $this->createArmourer();
@@ -110,7 +115,7 @@ class FightPropertiesTest extends TestWithMockery
         $this->addCanUseArmament($armourer, $wornHelm, $strength, $size);
         $skills = $this->createSkills();
         $missingWeaponSkillsTable = new MissingWeaponSkillTable();
-        $combatActions = $this->createCombatActions($combatActionValues = ['foo']);
+        $combatActions = $this->createCombatActions($combatActionValues = ['foo'], $usesSimplifiedLightingRules);
 
         // attack number
         $this->addAttackNumberMalusByStrengthWithWeaponlike(
@@ -240,7 +245,8 @@ class FightPropertiesTest extends TestWithMockery
             $weaponHolding,
             $fightsWithTwoWeapons,
             $shieldCode,
-            $enemyIsFasterThanYou
+            $enemyIsFasterThanYou,
+            $this->createGlared($currentMalusFromLightingContrast)
         );
 
         $this->I_can_get_expected_fight_number(
@@ -279,7 +285,9 @@ class FightPropertiesTest extends TestWithMockery
             $offensiveness,
             $combatActionsAttackNumberModifier,
             $distance,
-            $attackNumberModifierByDistance
+            $attackNumberModifierByDistance,
+            $usesSimplifiedLightingRules,
+            $currentMalusFromLightingContrast
         );
 
         $this->I_can_get_expected_base_of_wounds(
@@ -300,6 +308,8 @@ class FightPropertiesTest extends TestWithMockery
             $fightProperties,
             $currentProperties,
             $defenseNumberModifierFromActions,
+            $usesSimplifiedLightingRules,
+            $currentMalusFromLightingContrast,
             $defenseNumberMalusByStrengthWithWeapon,
             $coverOfWeapon,
             $skillsMalusToCoverWithWeapon,
@@ -315,13 +325,14 @@ class FightPropertiesTest extends TestWithMockery
     public function provideUsageCombinations()
     {
         // enemy is faster than you, weapon is two handed only, holds weapon by two hands, weapon in main hand,
-        // weapon is shield, weapon is shooting, target distance in meters, speed modifier from combat actions
+        // weapon is shield, weapon is shooting, target distance in meters, speed modifier from combat actions,
+        // uses simplified lighting rules, malus from lighting contrast,
         return [
-            [true, false, false, true, false, false, 0, 0],
-            [true, false, false, false, true, false, 14789 /* distance should be ignored for non-ranged weapon */, 4596],
-            [false, false, true, true, false, true, 1, -741],
-            [false, false, true, true, false, true, 78515, 0],
-            [false, true, true, false, true, false, 0, 1],
+            [true, false, false, true, false, false, 0, 0, true, 0],
+            [true, false /* not shooting */, false, false, true, false, 14789 /* distance should be ignored for non-ranged weapon */, 4596, false, 0],
+            [false, false, true, true, false, true, 1, -741, true, -987654 /* malus from lighting should be ignored on simplified rules usage */],
+            [false, false, true, true, false, true, 78515, 0, false, -123 /* odd */],
+            [false, true, true, false, true, false, 0, 1, false, -2 /* even */],
         ];
     }
 
@@ -384,6 +395,8 @@ class FightPropertiesTest extends TestWithMockery
      * @param int $combatActionsAttackNumberModifier
      * @param Distance $distance
      * @param int $attackNumberModifierByDistance
+     * @param bool $usesSimplifiedLightingRules
+     * @param int $currentMalusFromLightingContrast
      */
     private function I_can_get_expected_attack_number(
         FightProperties $fightProperties,
@@ -394,7 +407,9 @@ class FightPropertiesTest extends TestWithMockery
         $offensiveness,
         $combatActionsAttackNumberModifier,
         Distance $distance,
-        $attackNumberModifierByDistance
+        $attackNumberModifierByDistance,
+        $usesSimplifiedLightingRules,
+        $currentMalusFromLightingContrast
     )
     {
         $attackNumber = $fightProperties->getAttackNumber($distance);
@@ -409,6 +424,7 @@ class FightPropertiesTest extends TestWithMockery
             + $offensiveness
             + $combatActionsAttackNumberModifier
             + $attackNumberModifierByDistance
+            + ($usesSimplifiedLightingRules ? 0 : round($currentMalusFromLightingContrast / 2 /* just half */))
         );
         self::assertSame(
             $expectedAttackNumber->getValue(),
@@ -490,6 +506,8 @@ class FightPropertiesTest extends TestWithMockery
      * @param FightProperties $fightProperties
      * @param CurrentProperties $currentProperties
      * @param int $defenseNumberModifierFromCombatActions
+     * @param bool $usesSimplifiedLightingRules
+     * @param int $currentMalusFromLightingContrast
      * @param int $defenseNumberMalusByStrengthWithWeapon
      * @param int $coverOfWeapon
      * @param int $skillsMalusToCoverWithWeapon
@@ -502,6 +520,8 @@ class FightPropertiesTest extends TestWithMockery
         FightProperties $fightProperties,
         CurrentProperties $currentProperties,
         $defenseNumberModifierFromCombatActions,
+        $usesSimplifiedLightingRules,
+        $currentMalusFromLightingContrast,
         $defenseNumberMalusByStrengthWithWeapon,
         $coverOfWeapon,
         $skillsMalusToCoverWithWeapon,
@@ -513,7 +533,7 @@ class FightPropertiesTest extends TestWithMockery
     {
         self::assertInstanceOf(DefenseNumber::class, $fightProperties->getDefenseNumber());
         $expectedDefenseNumber = (new DefenseNumber($currentProperties->getAgility()))
-            ->add($defenseNumberModifierFromCombatActions);
+            ->add($defenseNumberModifierFromCombatActions + ($usesSimplifiedLightingRules ? 0 : $currentMalusFromLightingContrast));
         self::assertSame($expectedDefenseNumber->getValue(), $fightProperties->getDefenseNumber()->getValue());
 
         $expectedDefenseNumberWithWeapon = $expectedDefenseNumber->add(
@@ -566,6 +586,19 @@ class FightPropertiesTest extends TestWithMockery
     private function createArmourer()
     {
         return $this->mockery(Armourer::class);
+    }
+
+    /**
+     * @param int $currentMalus
+     * @return \Mockery\MockInterface|Glared
+     */
+    private function createGlared($currentMalus = 0)
+    {
+        $glared = $this->mockery(Glared::class);
+        $glared->shouldReceive('getCurrentMalus')
+            ->andReturn($currentMalus);
+
+        return $glared;
     }
 
     /**
@@ -652,13 +685,16 @@ class FightPropertiesTest extends TestWithMockery
 
     /**
      * @param array $values
+     * @param bool $usesSimplifiedLightingRules
      * @return \Mockery\MockInterface|CombatActions
      */
-    private function createCombatActions(array $values)
+    private function createCombatActions(array $values, $usesSimplifiedLightingRules = false)
     {
         $combatActions = $this->mockery(CombatActions::class);
         $combatActions->shouldReceive('getIterator')
             ->andReturn(new \ArrayIterator($values));
+        $combatActions->shouldReceive('usesSimplifiedLightingRules')
+            ->andReturn($usesSimplifiedLightingRules);
 
         return $combatActions;
     }
@@ -1348,7 +1384,8 @@ class FightPropertiesTest extends TestWithMockery
             ),
             false, // does not fight with two weapons now
             $shieldCode,
-            false // enemy is not faster now
+            false, // enemy is not faster now
+            $this->createGlared()
         );
     }
 
@@ -1412,7 +1449,8 @@ class FightPropertiesTest extends TestWithMockery
             ),
             $fightsWithTwoWeapons,
             $shieldCode,
-            false // enemy is not faster now
+            false, // enemy is not faster now
+            $this->createGlared()
         );
     }
 
@@ -1463,7 +1501,8 @@ class FightPropertiesTest extends TestWithMockery
             ),
             true, // fights with two weapons (does not affect this test)
             $shieldCode,
-            false // enemy is not faster now
+            false, // enemy is not faster now
+            $this->createGlared()
         );
     }
 
@@ -1507,7 +1546,8 @@ class FightPropertiesTest extends TestWithMockery
             ),
             true, // fights with two weapons (does not affect this test)
             $shieldCode,
-            false // enemy is not faster now (does not affect this test)
+            false, // enemy is not faster now (does not affect this test)
+            $this->createGlared()
         );
     }
 
@@ -1550,7 +1590,8 @@ class FightPropertiesTest extends TestWithMockery
             ),
             true, // fights with two weapons (does not affect this test)
             $shieldCode,
-            false // enemy is not faster now (does not affect this test)
+            false, // enemy is not faster now (does not affect this test)
+            $this->createGlared()
         );
     }
 
@@ -1590,7 +1631,8 @@ class FightPropertiesTest extends TestWithMockery
             ItemHoldingCode::getIt(ItemHoldingCode::TWO_HANDS),
             false,
             $shieldCode,
-            false // enemy is not faster now (does not affect this test)
+            false, // enemy is not faster now (does not affect this test)
+            $this->createGlared()
         );
     }
 
