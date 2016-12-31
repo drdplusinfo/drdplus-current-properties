@@ -1,6 +1,7 @@
 <?php
 namespace DrdPlus\CurrentProperties;
 
+use DrdPlus\Calculations\SumAndRound;
 use DrdPlus\Codes\Armaments\BodyArmorCode;
 use DrdPlus\Codes\Armaments\HelmCode;
 use DrdPlus\Codes\Armaments\MeleeWeaponCode;
@@ -31,7 +32,6 @@ use DrdPlus\Tables\Measurements\Distance\DistanceBonus;
 use DrdPlus\Tables\Measurements\Wounds\WoundsBonus as BaseOfWounds;
 use DrdPlus\Tables\Measurements\Wounds\WoundsBonus;
 use DrdPlus\Tables\Tables;
-use DrdPlus\Tools\Calculations\SumAndRound;
 use Granam\Boolean\Tools\ToBoolean;
 use Granam\Strict\Object\StrictObject;
 
