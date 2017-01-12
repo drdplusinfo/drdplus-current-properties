@@ -152,8 +152,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
     }
 
     /**
-     * This is the stable value, used for endurance and toughness.
-     * This value is affected only by levels, not by current weakness or load.
+     * This is the stable value, affected only by levels, not by a current weakness or a load.
      *
      * @return Strength
      */
