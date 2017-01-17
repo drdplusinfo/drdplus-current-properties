@@ -34,8 +34,8 @@ use DrdPlus\Skills\Skills;
 use DrdPlus\Tables\Actions\CombatActionsWithWeaponTypeCompatibilityTable;
 use DrdPlus\Tables\Armaments\Armourer;
 use DrdPlus\Tables\Armaments\Partials\WeaponlikeTable;
-use DrdPlus\Tables\Armaments\Shields\MissingShieldSkillTable;
-use DrdPlus\Tables\Armaments\Weapons\MissingWeaponSkillTable;
+use DrdPlus\Tables\Armaments\Shields\ShieldUsageSkillTable;
+use DrdPlus\Tables\Armaments\Weapons\WeaponSkillTable;
 use DrdPlus\Tables\Measurements\Distance\Distance;
 use DrdPlus\Tables\Measurements\Distance\DistanceBonus;
 use DrdPlus\Tables\Measurements\Distance\DistanceTable;
@@ -114,7 +114,7 @@ class FightPropertiesTest extends TestWithMockery
         $wornHelm = HelmCode::getIt(HelmCode::WITHOUT_HELM);
         $this->addCanUseArmament($armourer, $wornHelm, $strength, $size);
         $skills = $this->createSkills();
-        $missingWeaponSkillsTable = new MissingWeaponSkillTable();
+        $missingWeaponSkillsTable = new WeaponSkillTable();
         $combatActions = $this->createCombatActions($combatActionValues = ['foo'], $usesSimplifiedLightingRules);
 
         // attack number
@@ -144,7 +144,7 @@ class FightPropertiesTest extends TestWithMockery
             $baseOfWoundsMalusFromSkills = -12607
         );
         $this->addBaseOfWoundsBonusByHolding($armourer, $weaponlikeCode, $holdWeaponByTwoHands, $baseOfWoundsBonusForHolding = 748);
-        $missingShieldSkillsTable = new MissingShieldSkillTable();
+        $missingShieldSkillsTable = new ShieldUsageSkillTable();
         $tables = $this->createTables($weaponlikeCode, $combatActionValues, $armourer, $missingWeaponSkillsTable, $missingShieldSkillsTable);
         $this->addWoundsTypeOf($tables, $weaponlikeCode, WoundTypeCode::CUT);
         $this->addBaseOfWoundsModifierFromActions($combatActions, false /* weapon is not crushing */, $baseOfWoundsModifierFromActions = -1357);
@@ -711,16 +711,16 @@ class FightPropertiesTest extends TestWithMockery
      * @param WeaponlikeCode $weaponlikeCode
      * @param array $possibleActions
      * @param Armourer $armourer
-     * @param MissingWeaponSkillTable $missingWeaponSkillsTable
-     * @param MissingShieldSkillTable $missingShieldSkillsTable
+     * @param WeaponSkillTable $missingWeaponSkillsTable
+     * @param ShieldUsageSkillTable $missingShieldSkillsTable
      * @return \Mockery\MockInterface|Tables
      */
     private function createTables(
         WeaponlikeCode $weaponlikeCode,
         array $possibleActions,
         Armourer $armourer,
-        MissingWeaponSkillTable $missingWeaponSkillsTable = null,
-        MissingShieldSkillTable $missingShieldSkillsTable = null
+        WeaponSkillTable $missingWeaponSkillsTable = null,
+        ShieldUsageSkillTable $missingShieldSkillsTable = null
     )
     {
         $tables = $this->mockery(Tables::class);
@@ -732,11 +732,11 @@ class FightPropertiesTest extends TestWithMockery
         $tables->shouldReceive('getArmourer')
             ->andReturn($armourer);
         if ($missingWeaponSkillsTable) {
-            $tables->shouldReceive('getMissingWeaponSkillTable')
+            $tables->shouldReceive('getWeaponSkillTable')
                 ->andReturn($missingWeaponSkillsTable);
         }
         if ($missingShieldSkillsTable) {
-            $tables->shouldReceive('getMissingShieldSkillTable')
+            $tables->shouldReceive('getShieldUsageSkillTable')
                 ->andReturn($missingShieldSkillsTable);
         }
         $tables->shouldDeferMissing();
@@ -869,14 +869,14 @@ class FightPropertiesTest extends TestWithMockery
      * @see FightProperties::getAttackNumberModifier
      * @param Skills|\Mockery\MockInterface $skills
      * @param WeaponlikeCode $expectedWeaponlikeCode
-     * @param MissingWeaponSkillTable $missingWeaponSkillsTable
+     * @param WeaponSkillTable $missingWeaponSkillsTable
      * @param bool $fightsWithTwoWeapons
      * @param int $attackNumberMalus
      */
     private function addMalusToAttackNumberFromSkillsWithWeaponlike(
         Skills $skills,
         WeaponlikeCode $expectedWeaponlikeCode,
-        MissingWeaponSkillTable $missingWeaponSkillsTable,
+        WeaponSkillTable $missingWeaponSkillsTable,
         $fightsWithTwoWeapons,
         $attackNumberMalus
     )
@@ -1030,14 +1030,14 @@ class FightPropertiesTest extends TestWithMockery
     /**
      * @param Skills|\Mockery\MockInterface $skills
      * @param WeaponlikeCode $weaponlikeCode
-     * @param MissingWeaponSkillTable $missingWeaponSkillTable
+     * @param WeaponSkillTable $missingWeaponSkillTable
      * @param bool $fightsWithTwoWeapons
      * @param int $skillsMalusToCoverWithWeapon
      */
     private function addSkillsMalusToCoverWithWeapon(
         Skills $skills,
         WeaponlikeCode $weaponlikeCode,
-        MissingWeaponSkillTable $missingWeaponSkillTable,
+        WeaponSkillTable $missingWeaponSkillTable,
         $fightsWithTwoWeapons,
         $skillsMalusToCoverWithWeapon
     )
@@ -1049,12 +1049,12 @@ class FightPropertiesTest extends TestWithMockery
 
     /**
      * @param Skills|\Mockery\MockInterface $skills
-     * @param MissingShieldSkillTable $missingShieldSkillTable
+     * @param ShieldUsageSkillTable $missingShieldSkillTable
      * @param int $skillsMalusToCoverWithShield
      */
     private function addSkillsMalusToCoverWithShield(
         Skills $skills,
-        MissingShieldSkillTable $missingShieldSkillTable,
+        ShieldUsageSkillTable $missingShieldSkillTable,
         $skillsMalusToCoverWithShield
     )
     {
@@ -1136,14 +1136,14 @@ class FightPropertiesTest extends TestWithMockery
      * @see FightProperties::getFightNumberMalusFromWeaponlikesBySkills
      * @param Skills|\Mockery\MockInterface $skills
      * @param WeaponlikeCode $weaponlikeCode
-     * @param MissingWeaponSkillTable $missingWeaponSkillTable
+     * @param WeaponSkillTable $missingWeaponSkillTable
      * @param bool $fightsWithTwoWeapons ,
      * @param int $malusFromWeaponlike
      */
     private function addFightNumberMalusFromWeaponlikeBySkills(
         Skills $skills,
         WeaponlikeCode $weaponlikeCode,
-        MissingWeaponSkillTable $missingWeaponSkillTable,
+        WeaponSkillTable $missingWeaponSkillTable,
         $fightsWithTwoWeapons,
         $malusFromWeaponlike
     )
@@ -1200,14 +1200,14 @@ class FightPropertiesTest extends TestWithMockery
     /**
      * @param Skills|\Mockery\MockInterface $skills
      * @param WeaponlikeCode $weaponlikeCode
-     * @param MissingWeaponSkillTable $missingWeaponSkillsTable
+     * @param WeaponSkillTable $missingWeaponSkillsTable
      * @param $fightsWithTwoWeapons
      * @param $baseOfWoundsMalusFromSkills
      */
     private function addBaseOfWoundsMalusFromSkills(
         Skills $skills,
         WeaponlikeCode $weaponlikeCode,
-        MissingWeaponSkillTable $missingWeaponSkillsTable,
+        WeaponSkillTable $missingWeaponSkillsTable,
         $fightsWithTwoWeapons,
         $baseOfWoundsMalusFromSkills
     )

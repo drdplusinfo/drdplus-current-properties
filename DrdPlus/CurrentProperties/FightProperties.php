@@ -24,9 +24,6 @@ use DrdPlus\Properties\Combat\LoadingInRounds;
 use DrdPlus\Properties\Combat\MaximalRange;
 use DrdPlus\Properties\Combat\Shooting;
 use DrdPlus\Skills\Skills;
-use DrdPlus\Tables\Armaments\Exceptions\DistanceIsOutOfMaximalRange;
-use DrdPlus\Tables\Armaments\Exceptions\EncounterRangeCanNotBeGreaterThanMaximalRange;
-use DrdPlus\Tables\Environments\Exceptions\DistanceOutOfKnownValues;
 use DrdPlus\Tables\Measurements\Distance\Distance;
 use DrdPlus\Tables\Measurements\Distance\DistanceBonus;
 use DrdPlus\Tables\Measurements\Wounds\WoundsBonus as BaseOfWounds;
@@ -415,7 +412,7 @@ class FightProperties extends StrictObject
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
         $fightNumberMalus += $this->skills->getMalusToFightNumberWithWeaponlike(
             $this->weaponlike,
-            $this->tables->getMissingWeaponSkillTable(),
+            $this->tables->getWeaponSkillTable(),
             $this->fightsWithTwoWeapons
         );
 
@@ -495,9 +492,9 @@ class FightProperties extends StrictObject
     /**
      * @param Distance $targetDistance
      * @return int
-     * @throws DistanceIsOutOfMaximalRange
-     * @throws DistanceOutOfKnownValues
-     * @throws EncounterRangeCanNotBeGreaterThanMaximalRange
+     * @throws \DrdPlus\Tables\Armaments\Exceptions\DistanceIsOutOfMaximalRange
+     * @throws \DrdPlus\Tables\Armaments\Exceptions\EncounterRangeCanNotBeGreaterThanMaximalRange
+     * @throws \DrdPlus\Tables\Attacks\Exceptions\DistanceOutOfKnownValues
      */
     private function getAttackNumberModifier(Distance $targetDistance)
     {
@@ -515,7 +512,7 @@ class FightProperties extends StrictObject
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
         $attackNumberModifier += $this->skills->getMalusToAttackNumberWithWeaponlike(
             $this->weaponlike,
-            $this->tables->getMissingWeaponSkillTable(),
+            $this->tables->getWeaponSkillTable(),
             $this->fightsWithTwoWeapons // affects also ranged (mini-crossbows can be hold in one hand for example)
         );
 
@@ -570,7 +567,7 @@ class FightProperties extends StrictObject
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
             $baseOfWoundsValue += $this->skills->getMalusToBaseOfWoundsWithWeaponlike(
                 $this->weaponlike,
-                $this->tables->getMissingWeaponSkillTable(),
+                $this->tables->getWeaponSkillTable(),
                 $this->fightsWithTwoWeapons
             );
 
@@ -736,12 +733,12 @@ class FightProperties extends StrictObject
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
             $coverModifier += $this->skills->getMalusToCoverWithWeapon(
                 $this->weaponlike,
-                $this->tables->getMissingWeaponSkillTable(),
+                $this->tables->getWeaponSkillTable(),
                 $this->fightsWithTwoWeapons
             );
         } else { // even if you use shield as a weapon for attack, you are covering by it as a shield, of course
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-            $coverModifier += $this->skills->getMalusToCoverWithShield($this->tables->getMissingShieldSkillTable());
+            $coverModifier += $this->skills->getMalusToCoverWithShield($this->tables->getShieldUsageSkillTable());
         }
 
         return $coverModifier;
@@ -786,7 +783,7 @@ class FightProperties extends StrictObject
 
         // skill effect
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        $coverModifier += $this->skills->getMalusToCoverWithShield($this->tables->getMissingShieldSkillTable());
+        $coverModifier += $this->skills->getMalusToCoverWithShield($this->tables->getShieldUsageSkillTable());
 
         return $coverModifier;
     }
