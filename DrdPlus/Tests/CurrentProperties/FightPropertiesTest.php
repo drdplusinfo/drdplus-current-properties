@@ -36,6 +36,7 @@ use DrdPlus\Tables\Armaments\Armourer;
 use DrdPlus\Tables\Armaments\Partials\WeaponlikeTable;
 use DrdPlus\Tables\Armaments\Shields\ShieldUsageSkillTable;
 use DrdPlus\Tables\Armaments\Weapons\WeaponSkillTable;
+use DrdPlus\Tables\Body\CorrectionByHeightTable;
 use DrdPlus\Tables\Measurements\Distance\Distance;
 use DrdPlus\Tables\Measurements\Distance\DistanceBonus;
 use DrdPlus\Tables\Measurements\Distance\DistanceTable;
@@ -367,11 +368,12 @@ class FightPropertiesTest extends TestWithMockery
         $combatActionsFightNumberModifier
     )
     {
-        $fightNumber = $fightProperties->getFightNumber();
+        $tables = $this->createTablesWithCorrectionByHeightTable($currentProperties->getHeight(), -876);
+        $fightNumber = $fightProperties->getFightNumber($tables);
         self::assertInstanceOf(FightNumber::class, $fightNumber);
-        self::assertSame($fightNumber, $fightProperties->getFightNumber(), 'Expected same instances');
-        $expectedFightNumber = (new FightNumber($professionCode, $currentProperties, $currentProperties->getHeight()))
-            ->add(
+        self::assertSame($fightNumber, $fightProperties->getFightNumber($tables), 'Expected same instances');
+        $expectedFightNumber = (new FightNumber($professionCode, $currentProperties, $currentProperties->getHeight(), $tables))
+            ->add( /// fight number modifier
                 $fightNumberMalusFromStrengthForWeapon
                 + $fightNumberMalusFromStrengthForShield
                 + $fightNumberMalusFromWeapon
@@ -383,6 +385,23 @@ class FightPropertiesTest extends TestWithMockery
                 + $combatActionsFightNumberModifier
             );
         self::assertSame($expectedFightNumber->getValue(), $fightNumber->getValue());
+    }
+
+    /**
+     * @param Height $expectedHeight
+     * @param $correctionByHeight
+     * @return \Mockery\MockInterface|Tables
+     */
+    private function createTablesWithCorrectionByHeightTable(Height $expectedHeight, $correctionByHeight)
+    {
+        $tables = $this->mockery(Tables::class);
+        $tables->shouldReceive('getCorrectionByHeightTable')
+            ->andReturn($correctionByHeightTable = $this->mockery(CorrectionByHeightTable::class));
+        $correctionByHeightTable->shouldReceive('getCorrectionByHeight')
+            ->with($expectedHeight)
+            ->andReturn($correctionByHeight);
+
+        return $tables;
     }
 
     /**
@@ -835,6 +854,8 @@ class FightPropertiesTest extends TestWithMockery
         $height = $this->mockery(Height::class);
         $height->shouldReceive('getValue')
             ->andReturn($value);
+        $height->shouldReceive('__toString')
+            ->andReturn((string)$value);
 
         return $height;
     }

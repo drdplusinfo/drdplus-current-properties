@@ -340,16 +340,18 @@ class FightProperties extends StrictObject
     /**
      * Final fight number including body state (level, fatigue, wounds, curses...), used weapon and chosen action.
      *
+     * @param Tables $tables
      * @return FightNumber
      */
-    public function getFightNumber()
+    public function getFightNumber(Tables $tables)
     {
         if ($this->fightNumber === null) {
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
             $this->fightNumber = (new FightNumber(
                 $this->professionCode,
                 $this->currentProperties,
-                $this->currentProperties->getHeight()
+                $this->currentProperties->getHeight(),
+                $tables
             ))->add($this->getFightNumberModifier());
         }
 

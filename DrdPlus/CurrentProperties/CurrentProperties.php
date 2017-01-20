@@ -363,7 +363,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
                 $this->getKnack(),
                 $this->race->getRaceCode(),
                 $this->race->getSubraceCode(),
-                $this->tables->getRacesTable()
+                $this->tables
             );
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
             $this->senses = $baseSenses->add($this->health->getSignificantMalusFromPains($this->getWoundBoundary()));

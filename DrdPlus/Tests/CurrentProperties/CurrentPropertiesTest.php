@@ -112,7 +112,7 @@ class CurrentPropertiesTest extends TestWithMockery
         $propertiesByLevels->shouldReceive('getEndurance')->andReturn($endurance = $this->mockery(Endurance::class));
         $propertiesByLevels->shouldReceive('getSize')->andReturn($size);
         $commonHuman = CommonHuman::getIt();
-        $tables->shouldReceive('getRacesTable')->andReturn($this->createRacesTable($commonHuman, $raceSensesValue = 3344551));
+        $tables->shouldReceive('getRacesTable')->andReturn($this->createRacesTable($commonHuman, 3344551));
         $propertiesByLevels->shouldReceive('getWoundBoundary')->andReturn($expectedWoundBoundary = $this->mockery(WoundBoundary::class));
         $health->shouldReceive('getSignificantMalusFromPains')->with($expectedWoundBoundary)->andReturn($significantMalusFromPains = 11399);
         $propertiesByLevels->shouldReceive('getFatigueBoundary')->andReturn($expectedFatigueBoundary = $this->mockery(FatigueBoundary::class));
@@ -128,6 +128,7 @@ class CurrentPropertiesTest extends TestWithMockery
         );
 
         $this->I_can_get_current_properties(
+            $tables,
             $currentProperties,
             $commonHuman,
             $baseStrength,
@@ -145,7 +146,6 @@ class CurrentPropertiesTest extends TestWithMockery
             $toughness,
             $endurance,
             $size,
-            $raceSensesValue,
             $expectedWoundBoundary,
             $expectedFatigueBoundary,
             $significantMalusFromPains
@@ -153,6 +153,7 @@ class CurrentPropertiesTest extends TestWithMockery
     }
 
     /**
+     * @param Tables $tables
      * @param CurrentProperties $currentProperties
      * @param Race $race
      * @param Strength $baseStrength
@@ -170,12 +171,12 @@ class CurrentPropertiesTest extends TestWithMockery
      * @param Age $age
      * @param Toughness $toughness
      * @param Endurance $endurance
-     * @param int $raceSensesValue
      * @param WoundBoundary $expectedWoundBoundary
      * @param FatigueBoundary $expectedFatigueBoundary
      * @param int $significantMalusFromPains
      */
     private function I_can_get_current_properties(
+        Tables $tables,
         CurrentProperties $currentProperties,
         Race $race,
         Strength $baseStrength,
@@ -193,7 +194,6 @@ class CurrentPropertiesTest extends TestWithMockery
         Toughness $toughness,
         Endurance $endurance,
         Size $size,
-        $raceSensesValue,
         WoundBoundary $expectedWoundBoundary,
         FatigueBoundary $expectedFatigueBoundary,
         $significantMalusFromPains
@@ -231,12 +231,8 @@ class CurrentPropertiesTest extends TestWithMockery
         $expectedBeauty = new Beauty($agility, $currentProperties->getKnack(), $currentProperties->getCharisma());
         self::assertInstanceOf(Beauty::class, $currentProperties->getBeauty());
         self::assertSame($expectedBeauty->getValue(), $currentProperties->getBeauty()->getValue());
-        $baseSenses = new Senses(
-            $expectedKnack,
-            $race->getRaceCode(),
-            $race->getSubraceCode(),
-            $this->createRacesTable($race, $raceSensesValue)
-        );
+
+        $baseSenses = new Senses($expectedKnack, $race->getRaceCode(), $race->getSubraceCode(), $tables);
         $expectedSenses = $baseSenses->add($significantMalusFromPains);
         self::assertInstanceOf(Senses::class, $currentProperties->getSenses());
         self::assertSame($expectedSenses->getValue(), $currentProperties->getSenses()->getValue());
