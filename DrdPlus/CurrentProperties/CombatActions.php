@@ -4,7 +4,7 @@ namespace DrdPlus\CurrentProperties;
 use DrdPlus\Codes\CombatActions\CombatActionCode;
 use DrdPlus\Codes\CombatActions\MeleeCombatActionCode;
 use DrdPlus\Codes\CombatActions\RangedCombatActionCode;
-use DrdPlus\Tables\Actions\CombatActionsCompatibilityTable;
+use DrdPlus\Tables\Tables;
 use Granam\Integer\Tools\ToInteger;
 use Granam\Strict\Object\StrictObject;
 use Granam\Tools\ValueDescriber;
@@ -21,7 +21,7 @@ class CombatActions extends StrictObject implements \IteratorAggregate, \Countab
      * for example) simply create more instances with different actions.
      *
      * @param array|string[]|CombatActionCode[] $combatActionCodes
-     * @param CombatActionsCompatibilityTable $combatActionsCompatibilityTable
+     * @param Tables $tables
      * @param int $finishedRoundsOfAiming zero is for shooting without aim and disrupted aim
      * @throws \DrdPlus\CurrentProperties\Exceptions\IncompatibleCombatActions
      * @throws \DrdPlus\CurrentProperties\Exceptions\InvalidFormatOfRoundsOfAiming
@@ -29,12 +29,12 @@ class CombatActions extends StrictObject implements \IteratorAggregate, \Countab
      */
     public function __construct(
         array $combatActionCodes,
-        CombatActionsCompatibilityTable $combatActionsCompatibilityTable,
+        Tables $tables,
         $finishedRoundsOfAiming = 0 // zero means you just start aim
     )
     {
         $sanitizedCombatActionCodes = $this->sanitizeCombatActionCodes($combatActionCodes);
-        $this->validateActionCodesCoWork($sanitizedCombatActionCodes, $combatActionsCompatibilityTable);
+        $this->validateActionCodesCoWork($sanitizedCombatActionCodes, $tables);
         $this->finishedRoundsOfAiming = $this->sanitizeRoundsOfAiming($finishedRoundsOfAiming);
         $this->combatActionCodes = [];
         foreach ($sanitizedCombatActionCodes as $combatActionCode) {
@@ -69,16 +69,13 @@ class CombatActions extends StrictObject implements \IteratorAggregate, \Countab
 
     /**
      * @param array|CombatActionCode[] $combatActionCodes
-     * @param CombatActionsCompatibilityTable $combatActionsCompatibilityTable
+     * @param Tables $tables
      * @throws \DrdPlus\CurrentProperties\Exceptions\IncompatibleCombatActions
      */
-    private function validateActionCodesCoWork(
-        array $combatActionCodes,
-        CombatActionsCompatibilityTable $combatActionsCompatibilityTable
-    )
+    private function validateActionCodesCoWork(array $combatActionCodes, Tables $tables)
     {
         $this->guardUsableForSameAttackTypes($combatActionCodes);
-        $this->checkIncompatibleActions($combatActionCodes, $combatActionsCompatibilityTable);
+        $this->checkIncompatibleActions($combatActionCodes, $tables);
     }
 
     /**
@@ -107,13 +104,10 @@ class CombatActions extends StrictObject implements \IteratorAggregate, \Countab
 
     /**
      * @param array|CombatActionCode[] $combatActionCodes
-     * @param CombatActionsCompatibilityTable $combatActionsCompatibilityTable
+     * @param Tables $tables
      * @throws \DrdPlus\CurrentProperties\Exceptions\IncompatibleCombatActions
      */
-    private function checkIncompatibleActions(
-        array $combatActionCodes,
-        CombatActionsCompatibilityTable $combatActionsCompatibilityTable
-    )
+    private function checkIncompatibleActions(array $combatActionCodes, Tables $tables)
     {
         $incompatiblePairs = [];
         $anotherCombatActionCodes = $combatActionCodes;
@@ -123,7 +117,8 @@ class CombatActions extends StrictObject implements \IteratorAggregate, \Countab
             foreach ($anotherCombatActionCodes as $anotherCombatActionCode) {
                 /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
                 if ($combatActionCode !== $anotherCombatActionCode
-                    && !$combatActionsCompatibilityTable->canCombineTwoActions($combatActionCode, $anotherCombatActionCode)
+                    && !$tables->getCombatActionsCompatibilityTable()
+                        ->canCombineTwoActions($combatActionCode, $anotherCombatActionCode)
                 ) {
                     $incompatiblePairs[] = [$combatActionCode, $anotherCombatActionCode];
                 }
@@ -325,7 +320,6 @@ class CombatActions extends StrictObject implements \IteratorAggregate, \Countab
      * you are also surprised, then you can not defense yourself and your defense roll is automatically zero.
      *
      * @see getDefenseNumberModifierAgainstFasterOpponent
-     *
      * @return int
      */
     public function getDefenseNumberModifier()

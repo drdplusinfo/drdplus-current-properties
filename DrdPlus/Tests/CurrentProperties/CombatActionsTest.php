@@ -5,6 +5,7 @@ use DrdPlus\Codes\CombatActions\CombatActionCode;
 use DrdPlus\Codes\CombatActions\MeleeCombatActionCode;
 use DrdPlus\Codes\CombatActions\RangedCombatActionCode;
 use DrdPlus\Tables\Actions\CombatActionsCompatibilityTable;
+use DrdPlus\Tables\Tables;
 use Granam\Tests\Tools\TestWithMockery;
 
 class CombatActionsTest extends TestWithMockery
@@ -18,7 +19,7 @@ class CombatActionsTest extends TestWithMockery
             $inputActions = [
                 CombatActionCode::BLINDFOLD_FIGHT => CombatActionCode::getIt(CombatActionCode::BLINDFOLD_FIGHT),
             ],
-            $this->createCombatActionsCompatibilityTable($inputActions, true /* compatible */)
+            $this->createTablesWithCombatActionsCompatibilityTable($inputActions, true /* compatible */)
         );
         self::assertCount(1, $combatActions);
         self::assertSame($inputActions, $combatActions->getCombatActionCodes());
@@ -27,9 +28,9 @@ class CombatActionsTest extends TestWithMockery
     /**
      * @param array $expectedActionsToCombine
      * @param bool $areCompatible
-     * @return \Mockery\MockInterface|CombatActionsCompatibilityTable
+     * @return \Mockery\MockInterface|Tables
      */
-    private function createCombatActionsCompatibilityTable(array $expectedActionsToCombine, $areCompatible)
+    private function createTablesWithCombatActionsCompatibilityTable(array $expectedActionsToCombine, $areCompatible)
     {
         $expectedActionsToCombine = array_map(
             function ($expectedActionToCombine) {
@@ -37,7 +38,9 @@ class CombatActionsTest extends TestWithMockery
             },
             $expectedActionsToCombine
         );
-        $combatActionsCompatibilityTable = $this->mockery(CombatActionsCompatibilityTable::class);
+        $tables = $this->mockery(Tables::class);
+        $tables->shouldReceive('getCombatActionsCompatibilityTable')
+            ->andReturn($combatActionsCompatibilityTable = $this->mockery(CombatActionsCompatibilityTable::class));
         $combatActionsCompatibilityTable->shouldReceive('canCombineTwoActions')
             ->with(\Mockery::type(CombatActionCode::class), \Mockery::type(CombatActionCode::class))
             ->andReturnUsing(function (CombatActionCode $someAction, CombatActionCode $anotherAction) use ($expectedActionsToCombine, $areCompatible) {
@@ -53,7 +56,7 @@ class CombatActionsTest extends TestWithMockery
                 return $areCompatible;
             });
 
-        return $combatActionsCompatibilityTable;
+        return $tables;
     }
 
     /**
@@ -68,7 +71,7 @@ class CombatActionsTest extends TestWithMockery
                 CombatActionCode::BLINDFOLD_FIGHT,
                 CombatActionCode::SWAP_WEAPONS,
             ],
-            $this->createCombatActionsCompatibilityTable($expected, true)
+            $this->createTablesWithCombatActionsCompatibilityTable($expected, true)
         );
         foreach ($combatActions->getCombatActionCodes() as $combatActionCode) {
             $collected[] = $combatActionCode->getValue();
@@ -90,7 +93,7 @@ class CombatActionsTest extends TestWithMockery
                 CombatActionCode::BLINDFOLD_FIGHT,
                 CombatActionCode::SWAP_WEAPONS,
             ],
-            $this->createCombatActionsCompatibilityTable($expected, true)
+            $this->createTablesWithCombatActionsCompatibilityTable($expected, true)
         );
         $collected = [];
         foreach ($combatActions as $combatActionCode) {
@@ -106,7 +109,7 @@ class CombatActionsTest extends TestWithMockery
      */
     public function I_can_count_them()
     {
-        $combatActions = new CombatActions([], $this->createCombatActionsCompatibilityTable([], true));
+        $combatActions = new CombatActions([], $this->createTablesWithCombatActionsCompatibilityTable([], true));
         self::assertCount(0, $combatActions);
 
         $combatActions = new CombatActions(
@@ -115,7 +118,7 @@ class CombatActionsTest extends TestWithMockery
                 CombatActionCode::ATTACK_ON_DISABLED_OPPONENT,
                 CombatActionCode::BLINDFOLD_FIGHT,
             ],
-            $this->createCombatActionsCompatibilityTable($values, true)
+            $this->createTablesWithCombatActionsCompatibilityTable($values, true)
         );
         self::assertCount(3, $combatActions);
     }
@@ -125,7 +128,7 @@ class CombatActionsTest extends TestWithMockery
      */
     public function I_can_get_list_of_actions_as_string()
     {
-        $combatActions = new CombatActions([], $this->createCombatActionsCompatibilityTable([], true));
+        $combatActions = new CombatActions([], $this->createTablesWithCombatActionsCompatibilityTable([], true));
         self::assertSame('', (string)$combatActions);
 
         $combatActions = new CombatActions(
@@ -134,7 +137,7 @@ class CombatActionsTest extends TestWithMockery
                 CombatActionCode::BLINDFOLD_FIGHT,
                 CombatActionCode::LAYING,
             ],
-            $this->createCombatActionsCompatibilityTable($values, true)
+            $this->createTablesWithCombatActionsCompatibilityTable($values, true)
         );
         self::assertSame(implode(',', $values), (string)$combatActions);
     }
@@ -150,7 +153,7 @@ class CombatActionsTest extends TestWithMockery
                 CombatActionCode::BLINDFOLD_FIGHT,
                 CombatActionCode::ATTACKED_FROM_BEHIND,
             ],
-            $this->createCombatActionsCompatibilityTable($values, true)
+            $this->createTablesWithCombatActionsCompatibilityTable($values, true)
         );
         self::assertSame(0, $combatActions->getFightNumberModifier());
 
@@ -166,7 +169,7 @@ class CombatActionsTest extends TestWithMockery
                 CombatActionCode::SWAP_WEAPONS, // -2
                 CombatActionCode::HANDOVER_ITEM, // -2
             ],
-            $this->createCombatActionsCompatibilityTable($values, true)
+            $this->createTablesWithCombatActionsCompatibilityTable($values, true)
         );
         self::assertSame(-18, $combatActions->getFightNumberModifier());
     }
@@ -185,7 +188,7 @@ class CombatActionsTest extends TestWithMockery
                 CombatActionCode::BLINDFOLD_FIGHT, // -6
                 CombatActionCode::FIGHT_IN_REDUCED_VISIBILITY, // -1
             ],
-            $this->createCombatActionsCompatibilityTable($genericValues, true)
+            $this->createTablesWithCombatActionsCompatibilityTable($genericValues, true)
         );
         self::assertSame(-9, $combatActions->getAttackNumberModifier());
 
@@ -194,7 +197,7 @@ class CombatActionsTest extends TestWithMockery
         $meleeValues[] = MeleeCombatActionCode::PRESSURE; // +2
         $combatActions = new CombatActions(
             $meleeValues,
-            $this->createCombatActionsCompatibilityTable($meleeValues, true)
+            $this->createTablesWithCombatActionsCompatibilityTable($meleeValues, true)
         );
         self::assertSame(-5, $combatActions->getAttackNumberModifier());
 
@@ -202,20 +205,20 @@ class CombatActionsTest extends TestWithMockery
         $rangedValues[] = RangedCombatActionCode::AIMED_SHOT; // +0 (zero rounds of aiming as default value)
         $combatActions = new CombatActions(
             $rangedValues,
-            $this->createCombatActionsCompatibilityTable($rangedValues, true)
+            $this->createTablesWithCombatActionsCompatibilityTable($rangedValues, true)
         );
         self::assertSame(-9, $combatActions->getAttackNumberModifier());
 
         $combatActions = new CombatActions(
             $rangedValues,
-            $this->createCombatActionsCompatibilityTable($rangedValues, true),
+            $this->createTablesWithCombatActionsCompatibilityTable($rangedValues, true),
             2 // aiming for 2 rounds
         );
         self::assertSame(-7 /* +2 for max aiming */, $combatActions->getAttackNumberModifier());
 
         $combatActions = new CombatActions(
             $rangedValues,
-            $this->createCombatActionsCompatibilityTable($rangedValues, true),
+            $this->createTablesWithCombatActionsCompatibilityTable($rangedValues, true),
             11 // aiming for 11 rounds (up to 3 rounds should be counted)
         );
         self::assertSame(-6 /* +3 for max aiming */, $combatActions->getAttackNumberModifier());
@@ -231,7 +234,7 @@ class CombatActionsTest extends TestWithMockery
                 MeleeCombatActionCode::HEADLESS_ATTACK, // +2
                 MeleeCombatActionCode::FLAT_ATTACK, // -6
             ],
-            $this->createCombatActionsCompatibilityTable($values, true)
+            $this->createTablesWithCombatActionsCompatibilityTable($values, true)
         );
         self::assertSame(-4, $combatActions->getBaseOfWoundsModifier(false /* not crushing weapon */));
 
@@ -240,7 +243,7 @@ class CombatActionsTest extends TestWithMockery
                 MeleeCombatActionCode::HEADLESS_ATTACK, // +2
                 MeleeCombatActionCode::FLAT_ATTACK, // 0 because of crushing weapon
             ],
-            $this->createCombatActionsCompatibilityTable($values, true)
+            $this->createTablesWithCombatActionsCompatibilityTable($values, true)
         );
         self::assertSame(2, $combatActions->getBaseOfWoundsModifier(true /* crushing weapon */));
     }
@@ -264,7 +267,7 @@ class CombatActionsTest extends TestWithMockery
                 MeleeCombatActionCode::BLINDFOLD_FIGHT, // -10
                 MeleeCombatActionCode::FIGHT_IN_REDUCED_VISIBILITY, // -2
             ],
-            $this->createCombatActionsCompatibilityTable($values, true)
+            $this->createTablesWithCombatActionsCompatibilityTable($values, true)
         );
         self::assertSame(-33, $combatActions->getDefenseNumberModifier());
     }
@@ -290,7 +293,7 @@ class CombatActionsTest extends TestWithMockery
                 MeleeCombatActionCode::RUN, // -4
                 MeleeCombatActionCode::PUT_OUT_HARDLY_ACCESSIBLE_ITEM, // -4
             ],
-            $this->createCombatActionsCompatibilityTable($values, true)
+            $this->createTablesWithCombatActionsCompatibilityTable($values, true)
         );
         self::assertSame(-41, $combatActions->getDefenseNumberModifierAgainstFasterOpponent());
     }
@@ -305,7 +308,7 @@ class CombatActionsTest extends TestWithMockery
                 CombatActionCode::MOVE, // +8
                 CombatActionCode::RUN, // +22
             ],
-            $this->createCombatActionsCompatibilityTable($values, true /* just a little hack */)
+            $this->createTablesWithCombatActionsCompatibilityTable($values, true /* just a little hack */)
         );
         self::assertSame(30, $combatActions->getSpeedModifier());
     }
@@ -315,20 +318,17 @@ class CombatActionsTest extends TestWithMockery
      */
     public function I_can_ask_it_if_uses_simplified_lighting_rules_by_fight_actions()
     {
-        $combatActions = new CombatActions(
-            [CombatActionCode::MOVE, CombatActionCode::SWAP_WEAPONS],
-            new CombatActionsCompatibilityTable()
-        );
+        $combatActions = new CombatActions([CombatActionCode::MOVE, CombatActionCode::SWAP_WEAPONS], Tables::getIt());
         self::assertFalse($combatActions->usesSimplifiedLightingRules());
 
         $combatActions = new CombatActions(
             [CombatActionCode::ATTACK_ON_DISABLED_OPPONENT, CombatActionCode::BLINDFOLD_FIGHT],
-            new CombatActionsCompatibilityTable()
+            Tables::getIt()
         );
         self::assertTrue($combatActions->usesSimplifiedLightingRules());
         $combatActions = new CombatActions(
             [CombatActionCode::FIGHT_IN_REDUCED_VISIBILITY, CombatActionCode::SITTING_OR_ON_KNEELS],
-            new CombatActionsCompatibilityTable()
+            Tables::getIt()
         );
         self::assertTrue($combatActions->usesSimplifiedLightingRules());
     }
@@ -340,7 +340,7 @@ class CombatActionsTest extends TestWithMockery
      */
     public function I_can_not_create_it_with_unknown_code()
     {
-        new CombatActions(['swimming_against_current'], new CombatActionsCompatibilityTable());
+        new CombatActions(['swimming_against_current'], Tables::getIt());
     }
 
     /**
@@ -351,7 +351,7 @@ class CombatActionsTest extends TestWithMockery
     {
         new CombatActions(
             [MeleeCombatActionCode::COVER_OF_ALLY, RangedCombatActionCode::AIMED_SHOT],
-            new CombatActionsCompatibilityTable()
+            Tables::getIt()
         );
     }
 
@@ -364,21 +364,23 @@ class CombatActionsTest extends TestWithMockery
     {
         new CombatActions(
             [CombatActionCode::ATTACK_ON_DISABLED_OPPONENT, CombatActionCode::GETTING_UP],
-            $this->createCombatActionsIncompatibilityTable()
+            $this->createTablesWithCombatActionsIncompatibilityTable()
         );
     }
 
     /**
-     * @return \Mockery\MockInterface|CombatActionsCompatibilityTable
+     * @return \Mockery\MockInterface|Tables
      */
-    private function createCombatActionsIncompatibilityTable()
+    private function createTablesWithCombatActionsIncompatibilityTable()
     {
-        $combatActionsIncompatibilityTable = $this->mockery(CombatActionsCompatibilityTable::class);
+        $tables = $this->mockery(Tables::class);
+        $tables->shouldReceive('getCombatActionsCompatibilityTable')
+            ->andReturn($combatActionsIncompatibilityTable = $this->mockery(CombatActionsCompatibilityTable::class));
         $combatActionsIncompatibilityTable->shouldReceive('canCombineTwoActions')
             ->with(\Mockery::type(CombatActionCode::class), \Mockery::type(CombatActionCode::class))
             ->andReturn(false);
 
-        return $combatActionsIncompatibilityTable;
+        return $tables;
     }
 
     /**
@@ -390,7 +392,7 @@ class CombatActionsTest extends TestWithMockery
     {
         new CombatActions(
             [CombatActionCode::GETTING_UP, CombatActionCode::HANDOVER_ITEM],
-            new CombatActionsCompatibilityTable(),
+            Tables::getIt(),
             'lifetime'
         );
     }
