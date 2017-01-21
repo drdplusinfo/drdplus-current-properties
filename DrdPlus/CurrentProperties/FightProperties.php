@@ -62,7 +62,6 @@ class FightProperties extends StrictObject
     private $enemyIsFasterThanYou;
     /** @var Glared */
     private $glared;
-
     /** @var FightNumber */
     private $fightNumber;
     /** @var BaseOfWounds */
@@ -414,7 +413,7 @@ class FightProperties extends StrictObject
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
         $fightNumberMalus += $this->skills->getMalusToFightNumberWithWeaponlike(
             $this->weaponlike,
-            $this->tables->getWeaponSkillTable(),
+            $this->tables,
             $this->fightsWithTwoWeapons
         );
 
@@ -514,7 +513,7 @@ class FightProperties extends StrictObject
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
         $attackNumberModifier += $this->skills->getMalusToAttackNumberWithWeaponlike(
             $this->weaponlike,
-            $this->tables->getWeaponSkillTable(),
+            $this->tables,
             $this->fightsWithTwoWeapons // affects also ranged (mini-crossbows can be hold in one hand for example)
         );
 
@@ -569,7 +568,7 @@ class FightProperties extends StrictObject
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
             $baseOfWoundsValue += $this->skills->getMalusToBaseOfWoundsWithWeaponlike(
                 $this->weaponlike,
-                $this->tables->getWeaponSkillTable(),
+                $this->tables,
                 $this->fightsWithTwoWeapons
             );
 
@@ -735,12 +734,12 @@ class FightProperties extends StrictObject
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
             $coverModifier += $this->skills->getMalusToCoverWithWeapon(
                 $this->weaponlike,
-                $this->tables->getWeaponSkillTable(),
+                $this->tables,
                 $this->fightsWithTwoWeapons
             );
         } else { // even if you use shield as a weapon for attack, you are covering by it as a shield, of course
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-            $coverModifier += $this->skills->getMalusToCoverWithShield($this->tables->getShieldUsageSkillTable());
+            $coverModifier += $this->skills->getMalusToCoverWithShield($this->tables);
         }
 
         return $coverModifier;
@@ -785,7 +784,7 @@ class FightProperties extends StrictObject
 
         // skill effect
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        $coverModifier += $this->skills->getMalusToCoverWithShield($this->tables->getShieldUsageSkillTable());
+        $coverModifier += $this->skills->getMalusToCoverWithShield($this->tables);
 
         return $coverModifier;
     }
