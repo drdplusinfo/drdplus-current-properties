@@ -4,7 +4,7 @@ namespace DrdPlus\CurrentProperties;
 use DrdPlus\Codes\CombatActions\CombatActionCode;
 use DrdPlus\Codes\CombatActions\MeleeCombatActionCode;
 use DrdPlus\Codes\CombatActions\RangedCombatActionCode;
-use DrdPlus\Tables\Actions\CombatActionsCompatibilityTable;
+use DrdPlus\Tables\Combat\Actions\CombatActionsCompatibilityTable;
 use DrdPlus\Tables\Tables;
 use Granam\Tests\Tools\TestWithMockery;
 

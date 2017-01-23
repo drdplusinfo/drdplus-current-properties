@@ -25,13 +25,14 @@ use DrdPlus\Properties\Combat\AttackNumber;
 use DrdPlus\Properties\Combat\DefenseNumber;
 use DrdPlus\Properties\Combat\DefenseNumberAgainstShooting;
 use DrdPlus\Properties\Combat\EncounterRange;
+use DrdPlus\Properties\Combat\Fight;
 use DrdPlus\Properties\Combat\FightNumber;
 use DrdPlus\Properties\Combat\LoadingInRounds;
 use DrdPlus\Properties\Combat\MaximalRange;
 use DrdPlus\Properties\Combat\Shooting;
 use DrdPlus\Properties\Derived\Speed;
 use DrdPlus\Skills\Skills;
-use DrdPlus\Tables\Actions\CombatActionsWithWeaponTypeCompatibilityTable;
+use DrdPlus\Tables\Combat\Actions\CombatActionsWithWeaponTypeCompatibilityTable;
 use DrdPlus\Tables\Armaments\Armourer;
 use DrdPlus\Tables\Armaments\Partials\WeaponlikeTable;
 use DrdPlus\Tables\Armaments\Shields\ShieldUsageSkillTable;
@@ -55,6 +56,7 @@ class FightPropertiesTest extends TestWithMockery
      * @param bool $weaponIsInMainHand
      * @param bool $weaponIsShield
      * @param bool $weaponIsShooting and ranged
+     * @param bool $weaponIsLongerOrSameAsShield
      * @param int $targetDistanceInMeters
      * @param int $combatActionsSpeedModifier
      * @param bool $usesSimplifiedLightingRules
@@ -67,6 +69,7 @@ class FightPropertiesTest extends TestWithMockery
         $weaponIsInMainHand,
         $weaponIsShield,
         $weaponIsShooting, // and implicitly ranged
+        $weaponIsLongerOrSameAsShield,
         $targetDistanceInMeters,
         $combatActionsSpeedModifier,
         $usesSimplifiedLightingRules,
@@ -183,7 +186,9 @@ class FightPropertiesTest extends TestWithMockery
             $weaponIsShield ? $weaponlikeCode : null,
             $fightNumberMalusFromShieldAsWeapon = $weaponIsShield ? -4518 : 0
         );
-        $this->addFightNumberBonusByWeaponlikeLength($armourer, $weaponlikeCode, $weaponLength = 55, $shieldCode, $shieldLength = 66);
+        $weaponLength = 55;
+        $shieldLength = $weaponIsLongerOrSameAsShield ? $weaponLength : 66;
+        $this->addFightNumberBonusByWeaponlikeLength($armourer, $weaponlikeCode, $weaponLength, $shieldCode, $shieldLength);
         $this->addCombatActionsFightNumber($combatActions, $combatActionsFightNumberModifier = 777);
 
         // encounter range
@@ -250,7 +255,7 @@ class FightPropertiesTest extends TestWithMockery
             $this->createGlared($currentMalusFromLightingContrast)
         );
 
-        $this->I_can_get_expected_fight_number(
+        $this->I_can_get_expected_fight_and_fight_number(
             $fightProperties,
             $professionCode,
             $currentProperties,
@@ -261,7 +266,9 @@ class FightPropertiesTest extends TestWithMockery
             $fightNumberMalusFromHelm,
             $fightNumberMalusFromShield,
             $fightNumberMalusFromShieldAsWeapon, // conditioned - mostly zero
+            $weaponlikeCode,
             $weaponLength,
+            $shieldCode,
             $shieldLength,
             $combatActionsFightNumberModifier
         );
@@ -326,14 +333,15 @@ class FightPropertiesTest extends TestWithMockery
     public function provideUsageCombinations()
     {
         // enemy is faster than you, weapon is two handed only, holds weapon by two hands, weapon in main hand,
-        // weapon is shield, weapon is shooting, target distance in meters, speed modifier from combat actions,
-        // uses simplified lighting rules, malus from lighting contrast,
+        // weapon is shield, weapon is shooting, weapon is longer or same as shield, target distance in meters,
+        // speed modifier from combat actions, uses simplified lighting rules, malus from lighting contrast,
         return [
-            [true, false, false, true, false, false, 0, 0, true, 0],
-            [true, false /* not shooting */, false, false, true, false, 14789 /* distance should be ignored for non-ranged weapon */, 4596, false, 0],
-            [false, false, true, true, false, true, 1, -741, true, -987654 /* malus from lighting should be ignored on simplified rules usage */],
-            [false, false, true, true, false, true, 78515, 0, false, -123 /* odd */],
-            [false, true, true, false, true, false, 0, 1, false, -2 /* even */],
+            [true, false, false, true, false, false, true, 0, 0, true, 0],
+            [true, false, false, true, false, false, false, 0, 0, true, 0],
+            [true, false /* not shooting */, false, false, true, false, true, 14789 /* distance should be ignored for non-ranged weapon */, 4596, false, 0],
+            [false, false, true, true, false, true, false, 1, -741, true, -987654 /* malus from lighting should be ignored on simplified rules usage */],
+            [false, false, true, true, false, true, true, 78515, 0, false, -123 /* odd */],
+            [false, true, true, false, true, false, false, 0, 1, false, -2 /* even */],
         ];
     }
 
@@ -348,11 +356,13 @@ class FightPropertiesTest extends TestWithMockery
      * @param int $fightNumberMalusFromHelm
      * @param int $fightNumberMalusFromShield
      * @param int $fightNumberMalusFromShieldAsWeapon
-     * @param int $weaponLength
+     * @param WeaponlikeCode $weaponlikeCode
+     * @param int $weaponlikeLength
+     * @param ShieldCode $shieldCode
      * @param int $shieldLength
      * @param int $combatActionsFightNumberModifier
      */
-    private function I_can_get_expected_fight_number(
+    private function I_can_get_expected_fight_and_fight_number(
         FightProperties $fightProperties,
         ProfessionCode $professionCode,
         CurrentProperties $currentProperties,
@@ -363,17 +373,32 @@ class FightPropertiesTest extends TestWithMockery
         $fightNumberMalusFromHelm,
         $fightNumberMalusFromShield,
         $fightNumberMalusFromShieldAsWeapon, // this is conditioned - mostly zero
-        $weaponLength,
+        WeaponlikeCode $weaponlikeCode,
+        $weaponlikeLength,
+        ShieldCode $shieldCode,
         $shieldLength,
         $combatActionsFightNumberModifier
     )
     {
-        $tables = $this->createTablesWithCorrectionByHeightTable($currentProperties->getHeight(), -876);
+        $tables = $this->createTablesWithCorrectionByHeightTable(
+            $currentProperties->getHeight(),
+            -876,
+            $weaponlikeCode,
+            $weaponlikeLength,
+            $shieldCode,
+            $shieldLength
+        );
+        $fight = $fightProperties->getFight($tables);
+        self::assertInstanceOf(Fight::class, $fight);
+        self::assertSame($fight, $fightProperties->getFight($tables), 'Expected same instances');
+        $expectedFight = new Fight($professionCode, $currentProperties, $currentProperties->getHeight(), $tables);
+        self::assertSame($expectedFight->getValue(), $fight->getValue(), __FUNCTION__ . ' expected different fight value');
+
         $fightNumber = $fightProperties->getFightNumber($tables);
         self::assertInstanceOf(FightNumber::class, $fightNumber);
         self::assertSame($fightNumber, $fightProperties->getFightNumber($tables), 'Expected same instances');
-        $expectedFightNumber = (new FightNumber($professionCode, $currentProperties, $currentProperties->getHeight(), $tables))
-            ->add( /// fight number modifier
+        $expectedFightNumber = (new FightNumber($expectedFight, $shieldLength > $weaponlikeLength ? $shieldCode : $weaponlikeCode, $tables))
+            ->add( // fight number modifier
                 $fightNumberMalusFromStrengthForWeapon
                 + $fightNumberMalusFromStrengthForShield
                 + $fightNumberMalusFromWeapon
@@ -381,18 +406,28 @@ class FightPropertiesTest extends TestWithMockery
                 + $fightNumberMalusFromHelm
                 + $fightNumberMalusFromShield
                 + $fightNumberMalusFromShieldAsWeapon // this is conditioned - mostly zero
-                + max($weaponLength, $shieldLength)
                 + $combatActionsFightNumberModifier
             );
-        self::assertSame($expectedFightNumber->getValue(), $fightNumber->getValue());
+        self::assertSame($expectedFightNumber->getValue(), $fightNumber->getValue(), __FUNCTION__ . ' expected different value');
     }
 
     /**
      * @param Height $expectedHeight
      * @param $correctionByHeight
+     * @param WeaponlikeCode $weaponlikeCode
+     * @param $weaponlikeLength = null
+     * @param ShieldCode $shieldCode = null
+     * @param $shieldLength = null
      * @return \Mockery\MockInterface|Tables
      */
-    private function createTablesWithCorrectionByHeightTable(Height $expectedHeight, $correctionByHeight)
+    private function createTablesWithCorrectionByHeightTable(
+        Height $expectedHeight,
+        $correctionByHeight,
+        WeaponlikeCode $weaponlikeCode = null,
+        $weaponlikeLength = null,
+        ShieldCode $shieldCode = null,
+        $shieldLength = null
+    )
     {
         $tables = $this->mockery(Tables::class);
         $tables->shouldReceive('getCorrectionByHeightTable')
@@ -400,6 +435,18 @@ class FightPropertiesTest extends TestWithMockery
         $correctionByHeightTable->shouldReceive('getCorrectionByHeight')
             ->with($expectedHeight)
             ->andReturn($correctionByHeight);
+        $tables->shouldReceive('getArmourer')
+            ->andReturn($armourer = $this->mockery(Armourer::class));
+        if ($weaponlikeCode) {
+            $armourer->shouldReceive('getLengthOfWeaponOrShield')
+                ->with($weaponlikeCode)
+                ->andReturn($weaponlikeLength);
+        }
+        if ($shieldCode) {
+            $armourer->shouldReceive('getLengthOfWeaponOrShield')
+                ->with($shieldCode)
+                ->andReturn($shieldLength);
+        }
 
         return $tables;
     }
@@ -1206,7 +1253,7 @@ class FightPropertiesTest extends TestWithMockery
     }
 
     /**
-     * @see FightProperties::getFightNumberBonusByWeaponlikeLength
+     * @see FightProperties::getLongerWeaponlike
      * @param Armourer|\Mockery\MockInterface $armourer
      * @param WeaponlikeCode $weaponlikeCode
      * @param int $lengthOfWeaponlike

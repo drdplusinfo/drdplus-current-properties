@@ -19,6 +19,7 @@ use DrdPlus\Properties\Combat\AttackNumber;
 use DrdPlus\Properties\Combat\DefenseNumber;
 use DrdPlus\Properties\Combat\DefenseNumberAgainstShooting;
 use DrdPlus\Properties\Combat\EncounterRange;
+use DrdPlus\Properties\Combat\Fight;
 use DrdPlus\Properties\Combat\FightNumber;
 use DrdPlus\Properties\Combat\LoadingInRounds;
 use DrdPlus\Properties\Combat\MaximalRange;
@@ -62,6 +63,8 @@ class FightProperties extends StrictObject
     private $enemyIsFasterThanYou;
     /** @var Glared */
     private $glared;
+    /** @var Fight */
+    private $fight;
     /** @var FightNumber */
     private $fightNumber;
     /** @var BaseOfWounds */
@@ -337,6 +340,25 @@ class FightProperties extends StrictObject
     }
 
     /**
+     * @param Tables $tables
+     * @return Fight
+     */
+    public function getFight(Tables $tables)
+    {
+        if ($this->fight === null) {
+            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+            $this->fight = new Fight(
+                $this->professionCode,
+                $this->currentProperties,
+                $this->currentProperties->getHeight(),
+                $tables
+            );
+        }
+
+        return $this->fight;
+    }
+
+    /**
      * Final fight number including body state (level, fatigue, wounds, curses...), used weapon and chosen action.
      *
      * @param Tables $tables
@@ -346,19 +368,15 @@ class FightProperties extends StrictObject
     {
         if ($this->fightNumber === null) {
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-            $this->fightNumber = (new FightNumber(
-                $this->professionCode,
-                $this->currentProperties,
-                $this->currentProperties->getHeight(),
-                $tables
-            ))->add($this->getFightNumberModifier());
+            $this->fightNumber = (new FightNumber($this->getFight($tables), $this->getLongerWeaponlike(), $tables))
+                ->add($this->getFightNumberModifier());
         }
 
         return $this->fightNumber;
     }
 
     /**
-     * Fight number update according to weapon.
+     * Fight number update according to a missing strength, missing skill and by a combat action
      *
      * @return int
      */
@@ -371,9 +389,6 @@ class FightProperties extends StrictObject
 
         // skills effect
         $fightNumberModifier += $this->getFightNumberMalusBySkills();
-
-        // weapon length effect - length of weapon is directly used as bonus to fight number (shields and ranged weapons have length zero)
-        $fightNumberModifier += $this->getFightNumberBonusByWeaponlikeLength();
 
         // combat actions effect
         $fightNumberModifier += $this->combatActions->getFightNumberModifier();
@@ -450,17 +465,20 @@ class FightProperties extends StrictObject
     }
 
     /**
-     * @return int
+     * @return WeaponlikeCode
      */
-    private function getFightNumberBonusByWeaponlikeLength()
+    private function getLongerWeaponlike()
     {
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        $lengths[] = $this->tables->getArmourer()->getLengthOfWeaponOrShield($this->weaponlike);
+        $weaponlikeLength = $this->tables->getArmourer()->getLengthOfWeaponOrShield($this->weaponlike);
         // shields have length 0, but who knows...
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        $lengths[] = $this->tables->getArmourer()->getLengthOfWeaponOrShield($this->shield);
+        $shieldLength = $this->tables->getArmourer()->getLengthOfWeaponOrShield($this->shield);
+        if ($weaponlikeLength >= $shieldLength) {
+            return $this->weaponlike;
+        }
 
-        return max($lengths); // length of a weapon is directly used as a bonus to fight number
+        return $this->shield;
     }
 
     // ATTACK
@@ -495,7 +513,7 @@ class FightProperties extends StrictObject
      * @return int
      * @throws \DrdPlus\Tables\Armaments\Exceptions\DistanceIsOutOfMaximalRange
      * @throws \DrdPlus\Tables\Armaments\Exceptions\EncounterRangeCanNotBeGreaterThanMaximalRange
-     * @throws \DrdPlus\Tables\Attacks\Exceptions\DistanceOutOfKnownValues
+     * @throws \DrdPlus\Tables\Combat\Attacks\Exceptions\DistanceOutOfKnownValues
      */
     private function getAttackNumberModifier(Distance $targetDistance)
     {
@@ -549,7 +567,6 @@ class FightProperties extends StrictObject
      * Note about both hands holding of a weapon - if you have empty off-hand (without shield) and the weapon you are
      * holding is single-hand, it will automatically add +2 for two-hand holding (if you choose such action).
      * See PPH page 92 right column.
-     *
      * @return BaseOfWounds
      */
     public function getBaseOfWounds()
