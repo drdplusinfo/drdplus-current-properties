@@ -340,6 +340,8 @@ class FightProperties extends StrictObject
     }
 
     /**
+     * Fight is a game characteristic os it has to be recalculated on every change of a related property.
+     *
      * @param Tables $tables
      * @return Fight
      */
