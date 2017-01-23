@@ -3,6 +3,7 @@ namespace DrdPlus\CurrentProperties;
 
 use DrdPlus\Codes\Armaments\BodyArmorCode;
 use DrdPlus\Codes\Armaments\HelmCode;
+use DrdPlus\Codes\Properties\RemarkableSenseCode;
 use DrdPlus\Health\Health;
 use DrdPlus\Properties\Base\Agility;
 use DrdPlus\Properties\Base\Charisma;
@@ -30,6 +31,7 @@ use DrdPlus\PropertiesByLevels\PropertiesByLevels;
 use DrdPlus\Races\Race;
 use DrdPlus\Tables\Measurements\Weight\Weight;
 use DrdPlus\Tables\Tables;
+use Granam\Scalar\Tools\ToString;
 use Granam\Strict\Object\StrictObject;
 
 class CurrentProperties extends StrictObject implements BaseProperties
@@ -68,8 +70,8 @@ class CurrentProperties extends StrictObject implements BaseProperties
     private $charisma;
     /** @var Speed */
     private $speed;
-    /** @var Senses */
-    private $senses;
+    /** @var Senses[] */
+    private $senses = [];
     /** @var Beauty */
     private $beauty;
     /** @var Dangerousness */
@@ -353,23 +355,48 @@ class CurrentProperties extends StrictObject implements BaseProperties
     }
 
     /**
+     * @param RemarkableSenseCode $usedRemarkableSense
      * @return AbstractDerivedProperty|Senses
      * @throws \DrdPlus\Health\Exceptions\NeedsToRollAgainstMalusFirst
      */
-    public function getSenses()
+    public function getSenses(RemarkableSenseCode $usedRemarkableSense = null)
     {
-        if ($this->senses === null) {
-            $baseSenses = new Senses(
-                $this->getKnack(),
-                $this->race->getRaceCode(),
-                $this->race->getSubraceCode(),
-                $this->tables
-            );
+        if (!array_key_exists('without_remarkable_sense', $this->senses)) {
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-            $this->senses = $baseSenses->add($this->health->getSignificantMalusFromPains($this->getWoundBoundary()));
+            $this->senses['without_remarkable_sense'] = $this->createSensesWithoutRemarkableOneUsed();
+        }
+        if ($usedRemarkableSense === null) {
+            return $this->senses['without_remarkable_sense'];
+        }
+        if (!array_key_exists($usedRemarkableSense->getValue(), $this->senses)) {
+            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+            if (ToString::toString($this->race->getRemarkableSense($this->tables)) === $usedRemarkableSense->getValue()) {
+                /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+                $this->senses[$usedRemarkableSense->getValue()] = $this->senses['without_remarkable_sense']->add(1);
+            } else {
+                $this->senses[$usedRemarkableSense->getValue()] = $this->senses['without_remarkable_sense'];
+            }
         }
 
-        return $this->senses;
+        return $this->senses[$usedRemarkableSense->getValue()];
+    }
+
+    /**
+     * @return Senses|AbstractDerivedProperty
+     */
+    private function createSensesWithoutRemarkableOneUsed()
+    {
+        $baseSenses = new Senses(
+            $this->getKnack(),
+            $this->race->getRaceCode(),
+            $this->race->getSubraceCode(),
+            $this->tables
+        );
+
+        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+        return $baseSenses->add(
+            $this->health->getSignificantMalusFromPains($this->getWoundBoundary())
+        );
     }
 
     /**

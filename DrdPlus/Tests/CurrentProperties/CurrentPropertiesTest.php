@@ -3,6 +3,9 @@ namespace DrdPlus\Tests\CurrentProperties;
 
 use DrdPlus\Codes\Armaments\BodyArmorCode;
 use DrdPlus\Codes\Armaments\HelmCode;
+use DrdPlus\Codes\Properties\RemarkableSenseCode;
+use DrdPlus\Codes\RaceCode;
+use DrdPlus\Codes\SubRaceCode;
 use DrdPlus\CurrentProperties\CurrentProperties;
 use DrdPlus\Health\Health;
 use DrdPlus\Properties\Base\Agility;
@@ -111,7 +114,7 @@ class CurrentPropertiesTest extends TestWithMockery
         $propertiesByLevels->shouldReceive('getToughness')->andReturn($toughness = $this->mockery(Toughness::class));
         $propertiesByLevels->shouldReceive('getEndurance')->andReturn($endurance = $this->mockery(Endurance::class));
         $propertiesByLevels->shouldReceive('getSize')->andReturn($size);
-        $commonHuman = CommonHuman::getIt();
+        $commonHuman = $this->createRace(RaceCode::getIt(RaceCode::HUMAN), SubRaceCode::getIt(SubRaceCode::COMMON));
         $tables->shouldReceive('getRacesTable')->andReturn($this->createRacesTable($commonHuman, 3344551));
         $propertiesByLevels->shouldReceive('getWoundBoundary')->andReturn($expectedWoundBoundary = $this->mockery(WoundBoundary::class));
         $health->shouldReceive('getSignificantMalusFromPains')->with($expectedWoundBoundary)->andReturn($significantMalusFromPains = 11399);
@@ -155,7 +158,7 @@ class CurrentPropertiesTest extends TestWithMockery
     /**
      * @param Tables $tables
      * @param CurrentProperties $currentProperties
-     * @param Race $race
+     * @param Race|\Mockery\MockInterface $race
      * @param Strength $baseStrength
      * @param Strength $expectedStrength
      * @param Strength $strengthForOffhand
@@ -236,6 +239,19 @@ class CurrentPropertiesTest extends TestWithMockery
         $expectedSenses = $baseSenses->add($significantMalusFromPains);
         self::assertInstanceOf(Senses::class, $currentProperties->getSenses());
         self::assertSame($expectedSenses->getValue(), $currentProperties->getSenses()->getValue());
+        $race->shouldReceive('getRemarkableSense')
+            ->with($tables)
+            ->andReturn(RemarkableSenseCode::getIt(RemarkableSenseCode::HEARING));
+        self::assertSame(
+            $expectedSenses->getValue(),
+            $currentProperties->getSenses(RemarkableSenseCode::getIt(RemarkableSenseCode::SIGHT))->getValue(),
+            'Should have senses untouched by currently used remarkable sense'
+        );
+        self::assertSame(
+            $expectedSenses->getValue() + 1,
+            $currentProperties->getSenses(RemarkableSenseCode::getIt(RemarkableSenseCode::HEARING))->getValue(),
+            'Should have senses increased by currently used remarkable sense'
+        );
 
         $expectedDangerousness = new Dangerousness($expectedStrength, $expectedWill, $expectedCharisma);
         self::assertInstanceOf(Dangerousness::class, $currentProperties->getDangerousness());
@@ -244,6 +260,22 @@ class CurrentPropertiesTest extends TestWithMockery
         $expectedDignity = new Dignity($expectedIntelligence, $expectedWill, $expectedCharisma);
         self::assertInstanceOf(Dignity::class, $currentProperties->getDignity());
         self::assertSame($expectedDignity->getValue(), $currentProperties->getDignity()->getValue());
+    }
+
+    /**
+     * @param RaceCode $raceCode
+     * @param SubRaceCode $subRaceCode
+     * @return Race|\Mockery\MockInterface
+     */
+    private function createRace(RaceCode $raceCode, SubRaceCode $subRaceCode)
+    {
+        $race = $this->mockery(Race::class);
+        $race->shouldReceive('getRaceCode')
+            ->andReturn($raceCode);
+        $race->shouldReceive('getSubraceCode')
+            ->andReturn($subRaceCode);
+
+        return $race;
     }
 
     /**
