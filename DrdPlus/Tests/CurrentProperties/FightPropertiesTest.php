@@ -293,7 +293,7 @@ class FightPropertiesTest extends TestWithMockery
                 $attackNumberModifierByTargetSize = 4053
             );
         }
-        $this->I_can_get_expected_attack_number(
+        $this->I_can_get_expected_shooting_attack_and_attack_number(
             $fightProperties,
             $currentProperties,
             $weaponIsShooting,
@@ -323,7 +323,7 @@ class FightPropertiesTest extends TestWithMockery
 
         $this->I_can_get_expected_maximal_range($fightProperties, $weaponIsShooting);
 
-        $this->I_can_get_defense_number(
+        $this->I_can_get_defense_and_defense_number(
             $fightProperties,
             $currentProperties,
             $defenseNumberModifierFromActions,
@@ -476,7 +476,7 @@ class FightPropertiesTest extends TestWithMockery
      * @param bool $usesSimplifiedLightingRules
      * @param int $currentMalusFromLightingContrast
      */
-    private function I_can_get_expected_attack_number(
+    private function I_can_get_expected_shooting_attack_and_attack_number(
         FightProperties $fightProperties,
         CurrentProperties $currentProperties,
         $weaponIsRanged,
@@ -492,6 +492,16 @@ class FightPropertiesTest extends TestWithMockery
         $currentMalusFromLightingContrast
     )
     {
+        $shooting = $fightProperties->getShooting();
+        self::assertInstanceOf(Shooting::class, $shooting);
+        $expectedShooting = Shooting::getIt($currentProperties->getKnack());
+        self::assertSame($expectedShooting->getValue(), $shooting->getValue());
+
+        $attack = $fightProperties->getAttack();
+        self::assertInstanceOf(Attack::class, $attack);
+        $expectedAttack = Attack::getIt($currentProperties->getAgility());
+        self::assertSame($expectedAttack->getValue(), $attack->getValue());
+
         $attackNumber = $fightProperties->getAttackNumber($targetDistance, $targetSize);
         self::assertInstanceOf(AttackNumber::class, $attackNumber);
 
@@ -596,7 +606,7 @@ class FightPropertiesTest extends TestWithMockery
      * @param int $coverOfShield
      * @param int $skillsMalusToCoverWithShield
      */
-    private function I_can_get_defense_number(
+    private function I_can_get_defense_and_defense_number(
         FightProperties $fightProperties,
         CurrentProperties $currentProperties,
         $defenseNumberModifierFromCombatActions,
@@ -610,6 +620,11 @@ class FightPropertiesTest extends TestWithMockery
         $skillsMalusToCoverWithShield
     )
     {
+        $defense = $fightProperties->getDefense();
+        self::assertInstanceOf(Defense::class, $defense);
+        $expectedDefense = Defense::getIt($currentProperties->getAgility());
+        self::assertSame($expectedDefense->getValue(), $defense->getValue());
+
         self::assertInstanceOf(DefenseNumber::class, $fightProperties->getDefenseNumber());
         $expectedDefenseNumber = DefenseNumber::getIt(Defense::getIt($currentProperties->getAgility()))
             ->add($defenseNumberModifierFromCombatActions + ($usesSimplifiedLightingRules ? 0 : $currentMalusFromLightingContrast));
