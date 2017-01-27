@@ -227,15 +227,15 @@ class CurrentPropertiesTest extends TestWithMockery
         self::assertSame($expectedWoundBoundary, $currentProperties->getWoundBoundary());
         self::assertSame($expectedFatigueBoundary, $currentProperties->getFatigueBoundary());
 
-        $expectedSpeed = new Speed($expectedStrength, $agility, $height);
+        $expectedSpeed = Speed::getIt($expectedStrength, $agility, $height);
         self::assertInstanceOf(Speed::class, $currentProperties->getSpeed());
         self::assertSame($expectedSpeed->getValue(), $currentProperties->getSpeed()->getValue());
 
-        $expectedBeauty = new Beauty($agility, $currentProperties->getKnack(), $currentProperties->getCharisma());
+        $expectedBeauty = Beauty::getIt($agility, $currentProperties->getKnack(), $currentProperties->getCharisma());
         self::assertInstanceOf(Beauty::class, $currentProperties->getBeauty());
         self::assertSame($expectedBeauty->getValue(), $currentProperties->getBeauty()->getValue());
 
-        $baseSenses = new Senses($expectedKnack, $race->getRaceCode(), $race->getSubraceCode(), $tables);
+        $baseSenses = Senses::getIt($expectedKnack, $race->getRaceCode(), $race->getSubraceCode(), $tables);
         $expectedSenses = $baseSenses->add($significantMalusFromPains);
         self::assertInstanceOf(Senses::class, $currentProperties->getSenses());
         self::assertSame($expectedSenses->getValue(), $currentProperties->getSenses()->getValue());
@@ -253,11 +253,11 @@ class CurrentPropertiesTest extends TestWithMockery
             'Should have senses increased by currently used remarkable sense'
         );
 
-        $expectedDangerousness = new Dangerousness($expectedStrength, $expectedWill, $expectedCharisma);
+        $expectedDangerousness = Dangerousness::getIt($expectedStrength, $expectedWill, $expectedCharisma);
         self::assertInstanceOf(Dangerousness::class, $currentProperties->getDangerousness());
         self::assertSame($expectedDangerousness->getValue(), $currentProperties->getDangerousness()->getValue());
 
-        $expectedDignity = new Dignity($expectedIntelligence, $expectedWill, $expectedCharisma);
+        $expectedDignity = Dignity::getIt($expectedIntelligence, $expectedWill, $expectedCharisma);
         self::assertInstanceOf(Dignity::class, $currentProperties->getDignity());
         self::assertSame($expectedDignity->getValue(), $currentProperties->getDignity()->getValue());
     }

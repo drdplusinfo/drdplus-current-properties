@@ -14,10 +14,11 @@ use DrdPlus\Codes\ProfessionCode;
 use DrdPlus\Codes\Body\WoundTypeCode;
 use DrdPlus\Health\Inflictions\Glared;
 use DrdPlus\Properties\Base\Strength;
+use DrdPlus\Properties\Body\Size;
 use DrdPlus\Properties\Combat\Attack;
 use DrdPlus\Properties\Combat\AttackNumber;
+use DrdPlus\Properties\Combat\Defense;
 use DrdPlus\Properties\Combat\DefenseNumber;
-use DrdPlus\Properties\Combat\DefenseNumberAgainstShooting;
 use DrdPlus\Properties\Combat\EncounterRange;
 use DrdPlus\Properties\Combat\Fight;
 use DrdPlus\Properties\Combat\FightNumber;
@@ -63,6 +64,12 @@ class FightProperties extends StrictObject
     private $enemyIsFasterThanYou;
     /** @var Glared */
     private $glared;
+    /** @var Defense */
+    private $defense;
+    /** @var Attack */
+    private $attack;
+    /** @var Shooting */
+    private $shooting;
     /** @var Fight */
     private $fight;
     /** @var FightNumber */
@@ -71,10 +78,6 @@ class FightProperties extends StrictObject
     private $baseOfWounds;
     /** @var DefenseNumber */
     private $defenseNumber;
-    /** @var DefenseNumberAgainstShooting */
-    private $defenseNumberAgainstShooting;
-    /** @var DefenseNumberAgainstShooting */
-    private $defenseNumberAgainstShootingWithShield;
     /** @var DefenseNumber */
     private $defenseNumberWithShield;
     /** @var Distance */
@@ -340,8 +343,6 @@ class FightProperties extends StrictObject
     }
 
     /**
-     * Fight is a game characteristic os it has to be recalculated on every change of a related property.
-     *
      * @param Tables $tables
      * @return Fight
      */
@@ -349,7 +350,7 @@ class FightProperties extends StrictObject
     {
         if ($this->fight === null) {
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-            $this->fight = new Fight(
+            $this->fight = Fight::getIt(
                 $this->professionCode,
                 $this->currentProperties,
                 $this->currentProperties->getHeight(),
@@ -370,7 +371,7 @@ class FightProperties extends StrictObject
     {
         if ($this->fightNumber === null) {
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-            $this->fightNumber = (new FightNumber($this->getFight($tables), $this->getLongerWeaponlike(), $tables))
+            $this->fightNumber = FightNumber::getIt($this->getFight($tables), $this->getLongerWeaponlike(), $tables)
                 ->add($this->getFightNumberModifier());
         }
 
@@ -486,15 +487,40 @@ class FightProperties extends StrictObject
     // ATTACK
 
     /**
+     * @return Attack
+     */
+    public function getAttack()
+    {
+        if ($this->attack === null) {
+            $this->attack = Attack::getIt($this->currentProperties->getAgility());
+        }
+
+        return $this->attack;
+    }
+
+    /**
+     * @return Shooting
+     */
+    public function getShooting()
+    {
+        if ($this->shooting === null) {
+            $this->shooting = Shooting::getIt($this->currentProperties->getKnack());
+        }
+
+        return $this->shooting;
+    }
+
+    /**
      * Final attack number including body state (level, fatigue, wounds, curses...), used weapon and action.
      *
      * @param Distance $targetDistance
+     * @param Size $targetSize
      * @return AttackNumber
      */
-    public function getAttackNumber(Distance $targetDistance)
+    public function getAttackNumber(Distance $targetDistance, Size $targetSize)
     {
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        return $this->createBaseAttackNumber()->add($this->getAttackNumberModifier($targetDistance));
+        return $this->createBaseAttackNumber()->add($this->getAttackNumberModifier($targetDistance, $targetSize));
     }
 
     /**
@@ -503,21 +529,22 @@ class FightProperties extends StrictObject
     private function createBaseAttackNumber()
     {
         if ($this->weaponlike->isShootingWeapon()) {
-            return AttackNumber::createFromShooting(new Shooting($this->currentProperties->getKnack()));
+            return AttackNumber::getItFromShooting($this->getShooting());
         }
 
         // covers melee and throwing weapons
-        return AttackNumber::createFromAttack(new Attack($this->currentProperties->getAgility()));
+        return AttackNumber::getItFromAttack($this->getAttack());
     }
 
     /**
      * @param Distance $targetDistance
+     * @param Size $targetSize
      * @return int
      * @throws \DrdPlus\Tables\Armaments\Exceptions\DistanceIsOutOfMaximalRange
      * @throws \DrdPlus\Tables\Armaments\Exceptions\EncounterRangeCanNotBeGreaterThanMaximalRange
      * @throws \DrdPlus\Tables\Combat\Attacks\Exceptions\DistanceOutOfKnownValues
      */
-    private function getAttackNumberModifier(Distance $targetDistance)
+    private function getAttackNumberModifier(Distance $targetDistance, Size $targetSize)
     {
         $attackNumberModifier = 0;
         $armourer = $this->tables->getArmourer();
@@ -556,6 +583,11 @@ class FightProperties extends StrictObject
                 $this->getEncounterRange(),
                 $this->getMaximalRange()
             );
+        }
+
+        // distance effect (for ranged only)
+        if ($this->weaponlike->isRanged()) {
+            $attackNumberModifier += $armourer->getAttackNumberModifierBySize($targetSize);
         }
 
         return $attackNumberModifier;
@@ -629,7 +661,7 @@ class FightProperties extends StrictObject
             }
 
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-            $this->loadingInRounds = new LoadingInRounds($loadingInRoundsValue);
+            $this->loadingInRounds = LoadingInRounds::getIt($loadingInRoundsValue);
         }
 
         return $this->loadingInRounds;
@@ -647,7 +679,7 @@ class FightProperties extends StrictObject
     {
         if ($this->encounterRange === null) {
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-            $this->encounterRange = new EncounterRange(
+            $this->encounterRange = EncounterRange::getIt(
                 $this->tables->getArmourer()->getEncounterRangeWithWeaponlike(
                     $this->weaponlike,
                     $this->getStrengthForWeaponlike(),
@@ -671,9 +703,9 @@ class FightProperties extends StrictObject
     {
         if ($this->maximalRange === null) {
             if ($this->weaponlike instanceof RangedWeaponCode) {
-                $this->maximalRange = MaximalRange::createForRangedWeapon($this->getEncounterRange());
+                $this->maximalRange = MaximalRange::getItForRangedWeapon($this->getEncounterRange());
             } else {
-                $this->maximalRange = MaximalRange::createForMeleeWeapon($this->getEncounterRange()); // encounter = maximal for melee weapons
+                $this->maximalRange = MaximalRange::getItForMeleeWeapon($this->getEncounterRange()); // encounter = maximal for melee weapons
             }
         }
 
@@ -681,6 +713,18 @@ class FightProperties extends StrictObject
     }
 
     // DEFENSE
+
+    /**
+     * @return Defense
+     */
+    public function getDefense()
+    {
+        if ($this->defense === null) {
+            $this->defense = Defense::getIt($this->currentProperties->getAgility());
+        }
+
+        return $this->defense;
+    }
 
     /**
      * Your defense WITHOUT weapon and shield.
@@ -693,7 +737,7 @@ class FightProperties extends StrictObject
     public function getDefenseNumber()
     {
         if ($this->defenseNumber === null) {
-            $baseDefenseNumber = new DefenseNumber($this->currentProperties->getAgility());
+            $baseDefenseNumber = DefenseNumber::getIt($this->getDefense());
             if ($this->enemyIsFasterThanYou) {
                 // You CAN be affected by some of your actions because someone attacked you before you finished them.
                 // Your defense WITHOUT weapon and shield.
@@ -806,43 +850,6 @@ class FightProperties extends StrictObject
         $coverModifier += $this->skills->getMalusToCoverWithShield($this->tables);
 
         return $coverModifier;
-    }
-
-    /**
-     * You do not know how to cover against shooting by a weapon without special skill and that skill is not
-     * part of PPH.
-     * Therefore this is in fact base defense number WITHOUT weapon, just with size taken into account.
-     *
-     * @return DefenseNumberAgainstShooting
-     */
-    public function getDefenseNumberAgainstShooting()
-    {
-        if ($this->defenseNumberAgainstShooting === null) {
-            $this->defenseNumberAgainstShooting = new DefenseNumberAgainstShooting(
-                $this->getDefenseNumber(),
-                $this->currentProperties->getSize()
-            );
-        }
-
-        return $this->defenseNumberAgainstShooting;
-    }
-
-    /**
-     * Note: you do not know how to cover against shooting by a weapon without special skill and that skill is not
-     * part of PPH.
-     *
-     * @return DefenseNumberAgainstShooting
-     */
-    public function getDefenseNumberAgainstShootingWithShield()
-    {
-        if ($this->defenseNumberAgainstShootingWithShield === null) {
-            $this->defenseNumberAgainstShootingWithShield = new DefenseNumberAgainstShooting(
-                $this->getDefenseNumberWithShield(),
-                $this->currentProperties->getSize()
-            );
-        }
-
-        return $this->defenseNumberAgainstShootingWithShield;
     }
 
     // MOVEMENT

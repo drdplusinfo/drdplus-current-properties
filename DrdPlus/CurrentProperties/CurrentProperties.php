@@ -348,7 +348,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
     public function getSpeed()
     {
         if ($this->speed === null) {
-            $this->speed = new Speed($this->getStrength(), $this->getAgility(), $this->getHeight());
+            $this->speed = Speed::getIt($this->getStrength(), $this->getAgility(), $this->getHeight());
         }
 
         return $this->speed;
@@ -386,7 +386,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
      */
     private function createSensesWithoutRemarkableOneUsed()
     {
-        $baseSenses = new Senses(
+        $baseSenses = Senses::getIt(
             $this->getKnack(),
             $this->race->getRaceCode(),
             $this->race->getSubraceCode(),
@@ -405,7 +405,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
     public function getBeauty()
     {
         if ($this->beauty === null) {
-            $this->beauty = new Beauty($this->getAgility(), $this->getKnack(), $this->getCharisma());
+            $this->beauty = Beauty::getIt($this->getAgility(), $this->getKnack(), $this->getCharisma());
         }
 
         return $this->beauty;
@@ -417,7 +417,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
     public function getDangerousness()
     {
         if ($this->dangerousness === null) {
-            $this->dangerousness = new Dangerousness($this->getStrength(), $this->getWill(), $this->getCharisma());
+            $this->dangerousness = Dangerousness::getIt($this->getStrength(), $this->getWill(), $this->getCharisma());
         }
 
         return $this->dangerousness;
@@ -429,7 +429,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
     public function getDignity()
     {
         if ($this->dignity === null) {
-            $this->dignity = new Dignity($this->getIntelligence(), $this->getWill(), $this->getCharisma());
+            $this->dignity = Dignity::getIt($this->getIntelligence(), $this->getWill(), $this->getCharisma());
         }
 
         return $this->dignity;

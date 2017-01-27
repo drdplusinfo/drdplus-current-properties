@@ -22,8 +22,8 @@ use DrdPlus\Properties\Body\Height;
 use DrdPlus\Properties\Body\Size;
 use DrdPlus\Properties\Combat\Attack;
 use DrdPlus\Properties\Combat\AttackNumber;
+use DrdPlus\Properties\Combat\Defense;
 use DrdPlus\Properties\Combat\DefenseNumber;
-use DrdPlus\Properties\Combat\DefenseNumberAgainstShooting;
 use DrdPlus\Properties\Combat\EncounterRange;
 use DrdPlus\Properties\Combat\Fight;
 use DrdPlus\Properties\Combat\FightNumber;
@@ -273,15 +273,24 @@ class FightPropertiesTest extends TestWithMockery
             $combatActionsFightNumberModifier
         );
 
-        $distance = new Distance($targetDistanceInMeters, Distance::M, new DistanceTable());
-        $attackNumberModifierByDistance = 0;
+        $targetDistance = new Distance($targetDistanceInMeters, Distance::M, new DistanceTable());
+        $attackNumberModifierByTargetDistance = 0;
         if ($weaponIsShooting) {
             $this->addAttackNumberModifierByDistance(
-                $distance,
+                $targetDistance,
                 $armourer,
                 $fightProperties->getEncounterRange(),
                 $fightProperties->getMaximalRange(),
-                $attackNumberModifierByDistance = -8218
+                $attackNumberModifierByTargetDistance = -8218
+            );
+        }
+        $targetSize = Size::getIt(123);
+        $attackNumberModifierByTargetSize = 0;
+        if ($weaponIsShooting) {
+            $this->addAttackNumberModifierBySize(
+                $targetSize,
+                $armourer,
+                $attackNumberModifierByTargetSize = 4053
             );
         }
         $this->I_can_get_expected_attack_number(
@@ -292,8 +301,10 @@ class FightPropertiesTest extends TestWithMockery
             $attackNumberMalusBySkillsWithWeapon,
             $offensiveness,
             $combatActionsAttackNumberModifier,
-            $distance,
-            $attackNumberModifierByDistance,
+            $targetDistance,
+            $attackNumberModifierByTargetDistance,
+            $targetSize,
+            $attackNumberModifierByTargetSize,
             $usesSimplifiedLightingRules,
             $currentMalusFromLightingContrast
         );
@@ -323,8 +334,7 @@ class FightPropertiesTest extends TestWithMockery
             $skillsMalusToCoverWithWeapon,
             $defenseNumberMalusByStrengthWithShield,
             $coverOfShield,
-            $skillsMalusToCoverWithShield,
-            $size
+            $skillsMalusToCoverWithShield
         );
 
         $this->I_can_get_moved_distance($fightProperties, $expectedMovedDistance);
@@ -391,13 +401,13 @@ class FightPropertiesTest extends TestWithMockery
         $fight = $fightProperties->getFight($tables);
         self::assertInstanceOf(Fight::class, $fight);
         self::assertSame($fight, $fightProperties->getFight($tables), 'Expected same instances');
-        $expectedFight = new Fight($professionCode, $currentProperties, $currentProperties->getHeight(), $tables);
+        $expectedFight = Fight::getIt($professionCode, $currentProperties, $currentProperties->getHeight(), $tables);
         self::assertSame($expectedFight->getValue(), $fight->getValue(), __FUNCTION__ . ' expected different fight value');
 
         $fightNumber = $fightProperties->getFightNumber($tables);
         self::assertInstanceOf(FightNumber::class, $fightNumber);
         self::assertSame($fightNumber, $fightProperties->getFightNumber($tables), 'Expected same instances');
-        $expectedFightNumber = (new FightNumber($expectedFight, $shieldLength > $weaponlikeLength ? $shieldCode : $weaponlikeCode, $tables))
+        $expectedFightNumber = FightNumber::getIt($expectedFight, $shieldLength > $weaponlikeLength ? $shieldCode : $weaponlikeCode, $tables)
             ->add( // fight number modifier
                 $fightNumberMalusFromStrengthForWeapon
                 + $fightNumberMalusFromStrengthForShield
@@ -459,8 +469,10 @@ class FightPropertiesTest extends TestWithMockery
      * @param int $attackNumberMalusBySkillsWithWeapon
      * @param int $offensiveness
      * @param int $combatActionsAttackNumberModifier
-     * @param Distance $distance
-     * @param int $attackNumberModifierByDistance
+     * @param Distance $targetDistance
+     * @param int $attackNumberModifierByTargetDistance
+     * @param Size $targetSize
+     * @param int $attackNumberModifierByTargetSize
      * @param bool $usesSimplifiedLightingRules
      * @param int $currentMalusFromLightingContrast
      */
@@ -472,30 +484,33 @@ class FightPropertiesTest extends TestWithMockery
         $attackNumberMalusBySkillsWithWeapon,
         $offensiveness,
         $combatActionsAttackNumberModifier,
-        Distance $distance,
-        $attackNumberModifierByDistance,
+        Distance $targetDistance,
+        $attackNumberModifierByTargetDistance,
+        Size $targetSize,
+        $attackNumberModifierByTargetSize,
         $usesSimplifiedLightingRules,
         $currentMalusFromLightingContrast
     )
     {
-        $attackNumber = $fightProperties->getAttackNumber($distance);
+        $attackNumber = $fightProperties->getAttackNumber($targetDistance, $targetSize);
         self::assertInstanceOf(AttackNumber::class, $attackNumber);
 
         $expectedBaseAttackNumber = $weaponIsRanged
-            ? AttackNumber::createFromShooting(new Shooting($currentProperties->getKnack()))
-            : AttackNumber::createFromAttack(new Attack($currentProperties->getAgility()));
+            ? AttackNumber::getItFromShooting(Shooting::getIt($currentProperties->getKnack()))
+            : AttackNumber::getItFromAttack(Attack::getIt($currentProperties->getAgility()));
         $expectedAttackNumber = $expectedBaseAttackNumber->add(
             $attackNumberMalusByStrengthWithWeapon
             + $attackNumberMalusBySkillsWithWeapon
             + $offensiveness
             + $combatActionsAttackNumberModifier
-            + $attackNumberModifierByDistance
+            + $attackNumberModifierByTargetDistance
+            + $attackNumberModifierByTargetSize
             + ($usesSimplifiedLightingRules ? 0 : round($currentMalusFromLightingContrast / 2 /* just half */))
         );
         self::assertSame(
             $expectedAttackNumber->getValue(),
             $attackNumber->getValue(),
-            "Expected attack number {$expectedAttackNumber} on distance {$distance}"
+            "Expected attack number {$expectedAttackNumber} on distance {$targetDistance}"
         );
     }
 
@@ -556,8 +571,8 @@ class FightPropertiesTest extends TestWithMockery
     private function I_can_get_expected_maximal_range(FightProperties $fightProperties, $isRanged)
     {
         $expectedMaximalRange = $isRanged
-            ? MaximalRange::createForRangedWeapon($fightProperties->getEncounterRange())
-            : MaximalRange::createForMeleeWeapon($fightProperties->getEncounterRange());
+            ? MaximalRange::getItForRangedWeapon($fightProperties->getEncounterRange())
+            : MaximalRange::getItForMeleeWeapon($fightProperties->getEncounterRange());
         $maximalRange = $fightProperties->getMaximalRange();
         self::assertInstanceOf(MaximalRange::class, $maximalRange);
         self::assertSame(
@@ -580,7 +595,6 @@ class FightPropertiesTest extends TestWithMockery
      * @param int $defenseNumberMalusByStrengthWithShield
      * @param int $coverOfShield
      * @param int $skillsMalusToCoverWithShield
-     * @param Size $size
      */
     private function I_can_get_defense_number(
         FightProperties $fightProperties,
@@ -593,12 +607,11 @@ class FightPropertiesTest extends TestWithMockery
         $skillsMalusToCoverWithWeapon,
         $defenseNumberMalusByStrengthWithShield,
         $coverOfShield,
-        $skillsMalusToCoverWithShield,
-        Size $size
+        $skillsMalusToCoverWithShield
     )
     {
         self::assertInstanceOf(DefenseNumber::class, $fightProperties->getDefenseNumber());
-        $expectedDefenseNumber = (new DefenseNumber($currentProperties->getAgility()))
+        $expectedDefenseNumber = DefenseNumber::getIt(Defense::getIt($currentProperties->getAgility()))
             ->add($defenseNumberModifierFromCombatActions + ($usesSimplifiedLightingRules ? 0 : $currentMalusFromLightingContrast));
         self::assertSame($expectedDefenseNumber->getValue(), $fightProperties->getDefenseNumber()->getValue());
 
@@ -622,16 +635,6 @@ class FightPropertiesTest extends TestWithMockery
             $expectedDefenseNumberWithShield->getValue(),
             $fightProperties->getDefenseNumberWithShield()->getValue()
         );
-
-        $expectedDefenseNumberAgainstShooting = new DefenseNumberAgainstShooting($expectedDefenseNumber, $size);
-        $defenseNumberAgainstShooting = $fightProperties->getDefenseNumberAgainstShooting();
-        self::assertInstanceOf(DefenseNumberAgainstShooting::class, $defenseNumberAgainstShooting);
-        self::assertSame($defenseNumberAgainstShooting->getValue(), $expectedDefenseNumberAgainstShooting->getValue());
-
-        $expectedDefenseNumberAgainstShootingWithShield = new DefenseNumberAgainstShooting($expectedDefenseNumberWithShield, $size);
-        $defenseNumberAgainstShootingWithShield = $fightProperties->getDefenseNumberAgainstShootingWithShield();
-        self::assertInstanceOf(DefenseNumberAgainstShooting::class, $defenseNumberAgainstShootingWithShield);
-        self::assertSame($expectedDefenseNumberAgainstShootingWithShield->getValue(), $defenseNumberAgainstShootingWithShield->getValue());
     }
 
     /**
@@ -1416,6 +1419,18 @@ class FightPropertiesTest extends TestWithMockery
         $armourer->shouldReceive('getAttackNumberModifierByDistance')
             ->with($distance, $encounterRange, $maximalRange)
             ->andReturn($modifierByDistance);
+    }
+
+    /**
+     * @param Size $targetSize
+     * @param Armourer|\Mockery\MockInterface $armourer
+     * @param int $modifierBySize
+     */
+    private function addAttackNumberModifierBySize(Size $targetSize, Armourer $armourer, $modifierBySize)
+    {
+        $armourer->shouldReceive('getAttackNumberModifierBySize')
+            ->with($targetSize)
+            ->andReturn($modifierBySize);
     }
 
     /**
