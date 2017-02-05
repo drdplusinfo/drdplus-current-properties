@@ -36,7 +36,7 @@ use DrdPlus\Tables\Combat\Actions\CombatActionsWithWeaponTypeCompatibilityTable;
 use DrdPlus\Tables\Armaments\Armourer;
 use DrdPlus\Tables\Armaments\Partials\WeaponlikeTable;
 use DrdPlus\Tables\Armaments\Shields\ShieldUsageSkillTable;
-use DrdPlus\Tables\Armaments\Weapons\WeaponSkillTable;
+use DrdPlus\Tables\Armaments\Weapons\MissingWeaponSkillTable;
 use DrdPlus\Tables\Body\CorrectionByHeightTable;
 use DrdPlus\Tables\Measurements\Distance\Distance;
 use DrdPlus\Tables\Measurements\Distance\DistanceBonus;
@@ -118,7 +118,7 @@ class FightPropertiesTest extends TestWithMockery
         $wornHelm = HelmCode::getIt(HelmCode::WITHOUT_HELM);
         $this->addCanUseArmament($armourer, $wornHelm, $strength, $size);
         $skills = $this->createSkills();
-        $missingWeaponSkillsTable = new WeaponSkillTable();
+        $missingWeaponSkillsTable = new MissingWeaponSkillTable();
         $combatActions = $this->createCombatActions($combatActionValues = ['foo'], $usesSimplifiedLightingRules);
 
         // attack number
@@ -795,7 +795,7 @@ class FightPropertiesTest extends TestWithMockery
      * @param WeaponlikeCode $weaponlikeCode
      * @param array $possibleActions
      * @param Armourer $armourer
-     * @param WeaponSkillTable $missingWeaponSkillsTable
+     * @param MissingWeaponSkillTable $missingWeaponSkillsTable
      * @param ShieldUsageSkillTable $missingShieldSkillsTable
      * @return \Mockery\MockInterface|Tables
      */
@@ -803,7 +803,7 @@ class FightPropertiesTest extends TestWithMockery
         WeaponlikeCode $weaponlikeCode,
         array $possibleActions,
         Armourer $armourer,
-        WeaponSkillTable $missingWeaponSkillsTable = null,
+        MissingWeaponSkillTable $missingWeaponSkillsTable = null,
         ShieldUsageSkillTable $missingShieldSkillsTable = null
     )
     {
@@ -816,7 +816,7 @@ class FightPropertiesTest extends TestWithMockery
         $tables->shouldReceive('getArmourer')
             ->andReturn($armourer);
         if ($missingWeaponSkillsTable) {
-            $tables->shouldReceive('getWeaponSkillTable')
+            $tables->shouldReceive('getMissingWeaponSkillTable')
                 ->andReturn($missingWeaponSkillsTable);
         }
         if ($missingShieldSkillsTable) {
@@ -955,14 +955,14 @@ class FightPropertiesTest extends TestWithMockery
      * @see FightProperties::getAttackNumberModifier
      * @param Skills|\Mockery\MockInterface $skills
      * @param WeaponlikeCode $expectedWeaponlikeCode
-     * @param WeaponSkillTable $expectedWeaponSkillTable
+     * @param MissingWeaponSkillTable $expectedMissingWeaponSkillTable
      * @param bool $fightsWithTwoWeapons
      * @param int $attackNumberMalus
      */
     private function addMalusToAttackNumberFromSkillsWithWeaponlike(
         Skills $skills,
         WeaponlikeCode $expectedWeaponlikeCode,
-        WeaponSkillTable $expectedWeaponSkillTable,
+        MissingWeaponSkillTable $expectedMissingWeaponSkillTable,
         $fightsWithTwoWeapons,
         $attackNumberMalus
     )
@@ -972,8 +972,8 @@ class FightPropertiesTest extends TestWithMockery
             ->with($expectedWeaponlikeCode, $this->type(Tables::class), $fightsWithTwoWeapons)
             ->andReturnUsing(
                 function (WeaponlikeCode $weaponlikeCode, Tables $tables, $fightsWithTwoWeapons)
-                use ($expectedWeaponSkillTable, $attackNumberMalus) {
-                    self::assertSame($expectedWeaponSkillTable, $tables->getWeaponSkillTable());
+                use ($expectedMissingWeaponSkillTable, $attackNumberMalus) {
+                    self::assertSame($expectedMissingWeaponSkillTable, $tables->getMissingWeaponSkillTable());
 
                     return $attackNumberMalus;
                 }
@@ -1124,14 +1124,14 @@ class FightPropertiesTest extends TestWithMockery
     /**
      * @param Skills|\Mockery\MockInterface $skills
      * @param WeaponlikeCode $weaponlikeCode
-     * @param WeaponSkillTable $expectedWeaponSkillTable
+     * @param MissingWeaponSkillTable $expectedMissingWeaponSkillTable
      * @param bool $fightsWithTwoWeapons
      * @param int $skillsMalusToCoverWithWeapon
      */
     private function addSkillsMalusToCoverWithWeapon(
         Skills $skills,
         WeaponlikeCode $weaponlikeCode,
-        WeaponSkillTable $expectedWeaponSkillTable,
+        MissingWeaponSkillTable $expectedMissingWeaponSkillTable,
         $fightsWithTwoWeapons,
         $skillsMalusToCoverWithWeapon
     )
@@ -1141,8 +1141,8 @@ class FightPropertiesTest extends TestWithMockery
             ->with($weaponlikeCode, $this->type(Tables::class), $fightsWithTwoWeapons)
             ->andReturnUsing(
                 function (WeaponlikeCode $weaponlikeCode, Tables $tables, $fightsWithTwoWeapons)
-                use ($expectedWeaponSkillTable, $skillsMalusToCoverWithWeapon) {
-                    self::assertSame($expectedWeaponSkillTable, $tables->getWeaponSkillTable());
+                use ($expectedMissingWeaponSkillTable, $skillsMalusToCoverWithWeapon) {
+                    self::assertSame($expectedMissingWeaponSkillTable, $tables->getMissingWeaponSkillTable());
 
                     return $skillsMalusToCoverWithWeapon;
                 }
@@ -1245,14 +1245,14 @@ class FightPropertiesTest extends TestWithMockery
      * @see FightProperties::getFightNumberMalusFromWeaponlikesBySkills
      * @param Skills|\Mockery\MockInterface $skills
      * @param WeaponlikeCode $weaponlikeCode
-     * @param WeaponSkillTable $expectedWeaponSkillTable
+     * @param MissingWeaponSkillTable $expectedMissingWeaponSkillTable
      * @param bool $fightsWithTwoWeapons ,
      * @param int $malusFromWeaponlike
      */
     private function addFightNumberMalusFromWeaponlikeBySkills(
         Skills $skills,
         WeaponlikeCode $weaponlikeCode,
-        WeaponSkillTable $expectedWeaponSkillTable,
+        MissingWeaponSkillTable $expectedMissingWeaponSkillTable,
         $fightsWithTwoWeapons,
         $malusFromWeaponlike
     )
@@ -1262,8 +1262,8 @@ class FightPropertiesTest extends TestWithMockery
             ->with($weaponlikeCode, $this->type(Tables::class), $fightsWithTwoWeapons)
             ->andReturnUsing(
                 function (WeaponlikeCode $weaponlikeCode, Tables $tables, $fightsWithTwoWeapons)
-                use ($expectedWeaponSkillTable, $malusFromWeaponlike) {
-                    self::assertSame($expectedWeaponSkillTable, $tables->getWeaponSkillTable());
+                use ($expectedMissingWeaponSkillTable, $malusFromWeaponlike) {
+                    self::assertSame($expectedMissingWeaponSkillTable, $tables->getMissingWeaponSkillTable());
 
                     return $malusFromWeaponlike;
                 }
@@ -1317,14 +1317,14 @@ class FightPropertiesTest extends TestWithMockery
     /**
      * @param Skills|\Mockery\MockInterface $skills
      * @param WeaponlikeCode $weaponlikeCode
-     * @param WeaponSkillTable $expectedWeaponSkillTable
+     * @param MissingWeaponSkillTable $expectedMissingWeaponSkillTable
      * @param $fightsWithTwoWeapons
      * @param $baseOfWoundsMalusFromSkills
      */
     private function addBaseOfWoundsMalusFromSkills(
         Skills $skills,
         WeaponlikeCode $weaponlikeCode,
-        WeaponSkillTable $expectedWeaponSkillTable,
+        MissingWeaponSkillTable $expectedMissingWeaponSkillTable,
         $fightsWithTwoWeapons,
         $baseOfWoundsMalusFromSkills
     )
@@ -1334,8 +1334,8 @@ class FightPropertiesTest extends TestWithMockery
             ->with($weaponlikeCode, $this->type(Tables::class), $fightsWithTwoWeapons)
             ->andReturnUsing(
                 function (WeaponlikeCode $weaponlikeCode, Tables $tables, $fightsWithTwoWeapons)
-                use ($expectedWeaponSkillTable, $baseOfWoundsMalusFromSkills) {
-                    self::assertSame($expectedWeaponSkillTable, $tables->getWeaponSkillTable());
+                use ($expectedMissingWeaponSkillTable, $baseOfWoundsMalusFromSkills) {
+                    self::assertSame($expectedMissingWeaponSkillTable, $tables->getMissingWeaponSkillTable());
 
                     return $baseOfWoundsMalusFromSkills;
                 }
