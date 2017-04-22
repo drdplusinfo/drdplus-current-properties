@@ -8,6 +8,7 @@ use DrdPlus\Codes\Armaments\MeleeWeaponCode;
 use DrdPlus\Codes\Armaments\RangedWeaponCode;
 use DrdPlus\Codes\Armaments\ShieldCode;
 use DrdPlus\Codes\Armaments\WeaponlikeCode;
+use DrdPlus\Codes\DistanceCode;
 use DrdPlus\Codes\ItemHoldingCode;
 use DrdPlus\Codes\ProfessionCode;
 use DrdPlus\Codes\Body\WoundTypeCode;
@@ -273,7 +274,7 @@ class FightPropertiesTest extends TestWithMockery
             $combatActionsFightNumberModifier
         );
 
-        $targetDistance = new Distance($targetDistanceInMeters, Distance::M, new DistanceTable());
+        $targetDistance = new Distance($targetDistanceInMeters, DistanceCode::M, new DistanceTable());
         $attackNumberModifierByTargetDistance = 0;
         if ($weaponIsShooting) {
             $this->addAttackNumberModifierByDistance(
