@@ -274,7 +274,7 @@ class FightPropertiesTest extends TestWithMockery
             $combatActionsFightNumberModifier
         );
 
-        $targetDistance = new Distance($targetDistanceInMeters, DistanceCode::M, new DistanceTable());
+        $targetDistance = new Distance($targetDistanceInMeters, DistanceCode::METER, new DistanceTable());
         $attackNumberModifierByTargetDistance = 0;
         if ($weaponIsShooting) {
             $this->addAttackNumberModifierByDistance(

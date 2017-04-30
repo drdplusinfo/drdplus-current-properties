@@ -865,7 +865,7 @@ class FightProperties extends StrictObject
         if ($this->movedDistance === null) {
             if ($this->combatActions->getSpeedModifier() === 0) {
                 /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-                $this->movedDistance = new Distance(0, DistanceCode::M, $this->tables->getDistanceTable());
+                $this->movedDistance = new Distance(0, DistanceCode::METER, $this->tables->getDistanceTable());
             } else {
                 /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
                 $speedInFight = $this->currentProperties->getSpeed()->add($this->combatActions->getSpeedModifier());
