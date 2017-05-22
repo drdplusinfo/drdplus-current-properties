@@ -9,7 +9,7 @@ use DrdPlus\Codes\Armaments\RangedWeaponCode;
 use DrdPlus\Codes\Armaments\ShieldCode;
 use DrdPlus\Codes\Armaments\WeaponCode;
 use DrdPlus\Codes\Armaments\WeaponlikeCode;
-use DrdPlus\Codes\DistanceCode;
+use DrdPlus\Codes\DistanceUnitCode;
 use DrdPlus\Codes\ItemHoldingCode;
 use DrdPlus\Codes\ProfessionCode;
 use DrdPlus\Codes\Body\WoundTypeCode;
@@ -865,7 +865,7 @@ class FightProperties extends StrictObject
         if ($this->movedDistance === null) {
             if ($this->combatActions->getSpeedModifier() === 0) {
                 /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-                $this->movedDistance = new Distance(0, DistanceCode::METER, $this->tables->getDistanceTable());
+                $this->movedDistance = new Distance(0, DistanceUnitCode::METER, $this->tables->getDistanceTable());
             } else {
                 /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
                 $speedInFight = $this->currentProperties->getSpeed()->add($this->combatActions->getSpeedModifier());
