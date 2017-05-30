@@ -205,8 +205,8 @@ class CurrentPropertiesTest extends TestWithMockery
         // base properties
         self::assertSame($baseStrength, $currentProperties->getBodyStrength());
         self::assertSame($expectedStrength, $currentProperties->getStrength());
-        self::assertSame($expectedStrength, $currentProperties->getStrengthForMainHandOnly());
-        self::assertSame($strengthForOffhand, $currentProperties->getStrengthForOffhandOnly());
+        self::assertSame($expectedStrength, $currentProperties->getStrengthOfMainHand());
+        self::assertSame($strengthForOffhand, $currentProperties->getStrengthOfOffhand());
         self::assertSame($agility, $currentProperties->getAgility());
         self::assertInstanceOf(Knack::class, $currentProperties->getKnack());
         self::assertSame($expectedKnack->getValue(), $currentProperties->getKnack()->getValue());
@@ -430,7 +430,7 @@ class CurrentPropertiesTest extends TestWithMockery
         );
     }
 
-    public function provideNotBearableArmorOrHelm()
+    public function provideNotBearableArmorOrHelm(): array
     {
         return [
             [false, true],

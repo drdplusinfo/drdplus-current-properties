@@ -17,7 +17,6 @@ use DrdPlus\Properties\Body\Height;
 use DrdPlus\Properties\Body\HeightInCm;
 use DrdPlus\Properties\Body\Size;
 use DrdPlus\Properties\Body\WeightInKg;
-use DrdPlus\Properties\Combat\BaseProperties;
 use DrdPlus\Properties\Derived\Beauty;
 use DrdPlus\Properties\Derived\Dangerousness;
 use DrdPlus\Properties\Derived\Dignity;
@@ -36,7 +35,7 @@ use DrdPlus\Tables\Tables;
 use Granam\Scalar\Tools\ToString;
 use Granam\Strict\Object\StrictObject;
 
-class CurrentProperties extends StrictObject implements BaseProperties
+class CurrentProperties extends StrictObject implements PropertiesForFight
 {
     /** @var PropertiesByLevels */
     private $propertiesByLevels;
@@ -142,7 +141,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
      *
      * @return Strength
      */
-    public function getStrength()
+    public function getStrength(): Strength
     {
         if ($this->strength === null) {
             $strengthWithoutMalusFromLoad = $this->getStrengthWithoutMalusFromLoad();
@@ -159,7 +158,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
     /**
      * @return Strength
      */
-    private function getStrengthWithoutMalusFromLoad()
+    private function getStrengthWithoutMalusFromLoad(): Strength
     {
         if ($this->strengthWithoutMalusFromLoad === null) {
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
@@ -175,7 +174,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
      *
      * @return Strength
      */
-    public function getBodyStrength()
+    public function getBodyStrength(): Strength
     {
         return $this->propertiesByLevels->getStrength();
     }
@@ -183,7 +182,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
     /**
      * @return Strength
      */
-    public function getStrengthForMainHandOnly()
+    public function getStrengthOfMainHand(): Strength
     {
         return $this->getStrength();
     }
@@ -191,7 +190,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
     /**
      * @return Strength
      */
-    public function getStrengthForOffhandOnly()
+    public function getStrengthOfOffhand(): Strength
     {
         if ($this->strengthForOffhandOnly === null) {
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
@@ -204,7 +203,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
     /**
      * @return Agility
      */
-    public function getAgility()
+    public function getAgility(): Agility
     {
         if ($this->agility === null) {
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
@@ -218,7 +217,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
      * @return int
      * @throws Exceptions\CanNotUseArmamentBecauseOfMissingStrength
      */
-    private function getAgilityTotalMalus()
+    private function getAgilityTotalMalus(): int
     {
         $agilityMalus = 0;
         /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
@@ -246,7 +245,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
     /**
      * @return Knack
      */
-    public function getKnack()
+    public function getKnack(): Knack
     {
         if ($this->knack === null) {
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
@@ -264,7 +263,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
     /**
      * @return Will
      */
-    public function getWill()
+    public function getWill(): Will
     {
         if ($this->will === null) {
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
@@ -277,7 +276,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
     /**
      * @return Intelligence
      */
-    public function getIntelligence()
+    public function getIntelligence(): Intelligence
     {
         if ($this->intelligence === null) {
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
@@ -291,7 +290,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
     /**
      * @return Charisma
      */
-    public function getCharisma()
+    public function getCharisma(): Charisma
     {
         if ($this->charisma === null) {
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
@@ -304,7 +303,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
     /**
      * @return WeightInKg
      */
-    public function getWeightInKg()
+    public function getWeightInKg(): WeightInKg
     {
         return $this->propertiesByLevels->getWeightInKg();
     }
@@ -312,7 +311,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
     /**
      * @return HeightInCm
      */
-    public function getHeightInCm()
+    public function getHeightInCm(): HeightInCm
     {
         return $this->propertiesByLevels->getHeightInCm();
     }
@@ -322,7 +321,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
      *
      * @return Height
      */
-    public function getHeight()
+    public function getHeight(): Height
     {
         return $this->propertiesByLevels->getHeight();
     }
@@ -330,7 +329,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
     /**
      * @return Age
      */
-    public function getAge()
+    public function getAge(): Age
     {
         return $this->propertiesByLevels->getAge();
     }
@@ -338,7 +337,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
     /**
      * @return Toughness
      */
-    public function getToughness()
+    public function getToughness(): Toughness
     {
         return $this->propertiesByLevels->getToughness();
     }
@@ -346,7 +345,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
     /**
      * @return Endurance
      */
-    public function getEndurance()
+    public function getEndurance(): Endurance
     {
         return $this->propertiesByLevels->getEndurance();
     }
@@ -354,7 +353,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
     /**
      * @return Size
      */
-    public function getSize()
+    public function getSize(): Size
     {
         return $this->propertiesByLevels->getSize();
     }
@@ -362,7 +361,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
     /**
      * @return Speed
      */
-    public function getSpeed()
+    public function getSpeed(): Speed
     {
         if ($this->speed === null) {
             $this->speed = Speed::getIt($this->getStrength(), $this->getAgility(), $this->getHeight());
@@ -419,7 +418,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
     /**
      * @return Beauty
      */
-    public function getBeauty()
+    public function getBeauty(): Beauty
     {
         if ($this->beauty === null) {
             $this->beauty = Beauty::getIt($this->getAgility(), $this->getKnack(), $this->getCharisma());
@@ -431,7 +430,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
     /**
      * @return Dangerousness
      */
-    public function getDangerousness()
+    public function getDangerousness(): Dangerousness
     {
         if ($this->dangerousness === null) {
             $this->dangerousness = Dangerousness::getIt($this->getStrength(), $this->getWill(), $this->getCharisma());
@@ -443,7 +442,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
     /**
      * @return Dignity
      */
-    public function getDignity()
+    public function getDignity(): Dignity
     {
         if ($this->dignity === null) {
             $this->dignity = Dignity::getIt($this->getIntelligence(), $this->getWill(), $this->getCharisma());
@@ -457,7 +456,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
      *
      * @return WoundBoundary
      */
-    public function getWoundBoundary()
+    public function getWoundBoundary(): WoundBoundary
     {
         return $this->propertiesByLevels->getWoundBoundary();
     }
@@ -467,7 +466,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
      *
      * @return FatigueBoundary
      */
-    public function getFatigueBoundary()
+    public function getFatigueBoundary(): FatigueBoundary
     {
         return $this->propertiesByLevels->getFatigueBoundary();
     }
