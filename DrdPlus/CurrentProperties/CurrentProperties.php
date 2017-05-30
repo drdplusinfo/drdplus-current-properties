@@ -1,6 +1,7 @@
 <?php
 namespace DrdPlus\CurrentProperties;
 
+use DrdPlus\Codes\Armaments\ArmamentCode;
 use DrdPlus\Codes\Armaments\BodyArmorCode;
 use DrdPlus\Codes\Armaments\HelmCode;
 use DrdPlus\Codes\Properties\RemarkableSenseCode;
@@ -29,6 +30,7 @@ use DrdPlus\Properties\Derived\Toughness;
 use DrdPlus\Properties\Derived\WoundBoundary;
 use DrdPlus\PropertiesByLevels\PropertiesByLevels;
 use DrdPlus\Races\Race;
+use DrdPlus\Tables\Armaments\Armourer;
 use DrdPlus\Tables\Measurements\Weight\Weight;
 use DrdPlus\Tables\Tables;
 use Granam\Scalar\Tools\ToString;
@@ -36,8 +38,6 @@ use Granam\Strict\Object\StrictObject;
 
 class CurrentProperties extends StrictObject implements BaseProperties
 {
-    use GuardArmamentWearableTrait;
-
     /** @var PropertiesByLevels */
     private $propertiesByLevels;
     /** @var Health */
@@ -114,6 +114,23 @@ class CurrentProperties extends StrictObject implements BaseProperties
         $this->wornBodyArmor = $wornBodyArmor;
         $this->guardArmamentWearable($wornHelm, $this->getStrength(), $this->getSize(), $tables->getArmourer());
         $this->wornHelm = $wornHelm;
+    }
+
+    /**
+     * @param ArmamentCode $armamentCode
+     * @param Strength $strength
+     * @param Size $size
+     * @param Armourer $armourer
+     * @throws Exceptions\CanNotUseArmamentBecauseOfMissingStrength
+     */
+    private function guardArmamentWearable(ArmamentCode $armamentCode, Strength $strength, Size $size, Armourer $armourer)
+    {
+        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+        if (!$armourer->canUseArmament($armamentCode, $strength, $size)) {
+            throw new Exceptions\CanNotUseArmamentBecauseOfMissingStrength(
+                "'{$armamentCode}' is too heavy to be used by with strength {$size}"
+            );
+        }
     }
 
     /**
