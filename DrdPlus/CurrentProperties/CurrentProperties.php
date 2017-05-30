@@ -17,6 +17,7 @@ use DrdPlus\Properties\Body\Height;
 use DrdPlus\Properties\Body\HeightInCm;
 use DrdPlus\Properties\Body\Size;
 use DrdPlus\Properties\Body\WeightInKg;
+use DrdPlus\Properties\Combat\BaseProperties;
 use DrdPlus\Properties\Derived\Beauty;
 use DrdPlus\Properties\Derived\Dangerousness;
 use DrdPlus\Properties\Derived\Dignity;
@@ -35,7 +36,7 @@ use DrdPlus\Tables\Tables;
 use Granam\Scalar\Tools\ToString;
 use Granam\Strict\Object\StrictObject;
 
-class CurrentProperties extends StrictObject implements PropertiesForFight
+class CurrentProperties extends StrictObject implements BaseProperties
 {
     /** @var PropertiesByLevels */
     private $propertiesByLevels;
