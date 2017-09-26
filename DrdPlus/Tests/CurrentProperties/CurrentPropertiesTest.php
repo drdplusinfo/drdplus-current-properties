@@ -18,7 +18,7 @@ use DrdPlus\Properties\Body\Age;
 use DrdPlus\Properties\Body\Height;
 use DrdPlus\Properties\Body\HeightInCm;
 use DrdPlus\Properties\Body\Size;
-use DrdPlus\Properties\Body\WeightInKg;
+use DrdPlus\Properties\Body\BodyWeightInKg;
 use DrdPlus\Properties\Derived\Beauty;
 use DrdPlus\Properties\Derived\Dangerousness;
 use DrdPlus\Properties\Derived\Dignity;
@@ -49,7 +49,7 @@ class CurrentPropertiesTest extends TestWithMockery
         $propertiesByLevels = $this->createPropertiesByLevels();
         $health = $this->createHealth();
         $health->shouldReceive('getStrengthMalusFromAfflictions')
-            ->andReturn($strengthMalusFromAfflictions = 'foo');
+            ->andReturn($strengthMalusFromAfflictions = -12345);
         $propertiesByLevels->shouldReceive('getStrength')
             ->andReturn($baseStrength = $this->mockery(Strength::class));
         $baseStrength->shouldReceive('add')
@@ -107,7 +107,7 @@ class CurrentPropertiesTest extends TestWithMockery
             ->andReturn($charismaMalusFromAfflictions = -6666674);
         $expectedCharisma = $baseCharisma->add($charismaMalusFromAfflictions);
 
-        $propertiesByLevels->shouldReceive('getWeightInKg')->andReturn($weightInKg = $this->mockery(WeightInKg::class));
+        $propertiesByLevels->shouldReceive('getWeightInKg')->andReturn($weightInKg = $this->mockery(BodyWeightInKg::class));
         $propertiesByLevels->shouldReceive('getHeightInCm')->andReturn($heightInCm = $this->mockery(HeightInCm::class));
         $propertiesByLevels->shouldReceive('getHeight')->andReturn($height = $this->createHeight(123789));
         $propertiesByLevels->shouldReceive('getAge')->andReturn($age = $this->mockery(Age::class));
@@ -167,7 +167,7 @@ class CurrentPropertiesTest extends TestWithMockery
      * @param Will $expectedWill
      * @param Intelligence $expectedIntelligence
      * @param Charisma $expectedCharisma
-     * @param WeightInKg $weightInKg
+     * @param BodyWeightInKg $weightInKg
      * @param HeightInCm $heightInCm
      * @param Height $height
      * @param Size $size
@@ -190,7 +190,7 @@ class CurrentPropertiesTest extends TestWithMockery
         Will $expectedWill,
         Intelligence $expectedIntelligence,
         Charisma $expectedCharisma,
-        WeightInKg $weightInKg,
+        BodyWeightInKg $weightInKg,
         HeightInCm $heightInCm,
         Height $height,
         Age $age,
@@ -393,7 +393,7 @@ class CurrentPropertiesTest extends TestWithMockery
         $propertiesByLevels = $this->createPropertiesByLevels();
         $health = $this->createHealth();
         $health->shouldReceive('getStrengthMalusFromAfflictions')
-            ->andReturn($strengthMalusFromAfflictions = 'foo');
+            ->andReturn($strengthMalusFromAfflictions = -54321);
         $propertiesByLevels->shouldReceive('getStrength')
             ->andReturn($baseStrength = $this->mockery(Strength::class));
         $baseStrength->shouldReceive('add')

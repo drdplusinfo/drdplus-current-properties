@@ -16,7 +16,7 @@ use DrdPlus\Properties\Body\Age;
 use DrdPlus\Properties\Body\Height;
 use DrdPlus\Properties\Body\HeightInCm;
 use DrdPlus\Properties\Body\Size;
-use DrdPlus\Properties\Body\WeightInKg;
+use DrdPlus\Properties\Body\BodyWeightInKg;
 use DrdPlus\Properties\Combat\BaseProperties;
 use DrdPlus\Properties\Derived\Beauty;
 use DrdPlus\Properties\Derived\Dangerousness;
@@ -302,9 +302,9 @@ class CurrentProperties extends StrictObject implements BaseProperties
     }
 
     /**
-     * @return WeightInKg
+     * @return BodyWeightInKg
      */
-    public function getWeightInKg(): WeightInKg
+    public function getWeightInKg(): BodyWeightInKg
     {
         return $this->propertiesByLevels->getWeightInKg();
     }
