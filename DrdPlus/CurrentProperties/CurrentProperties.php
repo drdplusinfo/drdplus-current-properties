@@ -1,4 +1,6 @@
 <?php
+declare(strict_types=1);
+
 namespace DrdPlus\CurrentProperties;
 
 use DrdPlus\Codes\Armaments\ArmamentCode;
@@ -30,7 +32,7 @@ use DrdPlus\Properties\Derived\Toughness;
 use DrdPlus\Properties\Derived\WoundBoundary;
 use DrdPlus\PropertiesByLevels\PropertiesByLevels;
 use DrdPlus\Races\Race;
-use DrdPlus\Tables\Armaments\Armourer;
+use DrdPlus\Armourer\Armourer;
 use DrdPlus\Tables\Measurements\Weight\Weight;
 use DrdPlus\Tables\Tables;
 use Granam\Scalar\Tools\ToString;
@@ -52,6 +54,8 @@ class CurrentProperties extends StrictObject implements BaseProperties
     private $cargoWeight;
     /** @var Tables */
     private $tables;
+    /** @var Armourer */
+    private $armourer;
     /** @var Strength */
     private $strength;
     /** @var Strength */
@@ -93,6 +97,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
      * @param HelmCode $wornHelm for no helm use \DrdPlus\Codes\Armaments\HelmCode::WITHOUT_HELM
      * @param Weight $cargoWeight
      * @param Tables $tables
+     * @param Armourer $armourer
      * @throws Exceptions\CanNotUseArmamentBecauseOfMissingStrength
      */
     public function __construct(
@@ -102,7 +107,8 @@ class CurrentProperties extends StrictObject implements BaseProperties
         BodyArmorCode $wornBodyArmor,
         HelmCode $wornHelm,
         Weight $cargoWeight,
-        Tables $tables
+        Tables $tables,
+        Armourer $armourer
     )
     {
         $this->propertiesByLevels = $propertiesByLevels;
@@ -110,9 +116,10 @@ class CurrentProperties extends StrictObject implements BaseProperties
         $this->race = $race;
         $this->cargoWeight = $cargoWeight;
         $this->tables = $tables;
-        $this->guardArmamentWearable($wornBodyArmor, $this->getStrength(), $this->getSize(), $tables->getArmourer());
+        $this->armourer = $armourer;
+        $this->guardArmamentWearable($wornBodyArmor, $this->getStrength(), $this->getSize());
         $this->wornBodyArmor = $wornBodyArmor;
-        $this->guardArmamentWearable($wornHelm, $this->getStrength(), $this->getSize(), $tables->getArmourer());
+        $this->guardArmamentWearable($wornHelm, $this->getStrength(), $this->getSize());
         $this->wornHelm = $wornHelm;
     }
 
@@ -120,15 +127,13 @@ class CurrentProperties extends StrictObject implements BaseProperties
      * @param ArmamentCode $armamentCode
      * @param Strength $strength
      * @param Size $size
-     * @param Armourer $armourer
      * @throws Exceptions\CanNotUseArmamentBecauseOfMissingStrength
      */
-    private function guardArmamentWearable(ArmamentCode $armamentCode, Strength $strength, Size $size, Armourer $armourer)
+    private function guardArmamentWearable(ArmamentCode $armamentCode, Strength $strength, Size $size): void
     {
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        if (!$armourer->canUseArmament($armamentCode, $strength, $size)) {
+        if (!$this->armourer->canUseArmament($armamentCode, $strength, $size)) {
             throw new Exceptions\CanNotUseArmamentBecauseOfMissingStrength(
-                "'{$armamentCode}' is too heavy to be used by with strength {$size}"
+                "'{$armamentCode}' with size {$size} is too heavy to be used by with strength {$strength}"
             );
         }
     }
@@ -147,7 +152,6 @@ class CurrentProperties extends StrictObject implements BaseProperties
         if ($this->strength === null) {
             $strengthWithoutMalusFromLoad = $this->getStrengthWithoutMalusFromLoad();
             // malus from missing strength is applied just once, even if it lowers the strength itself
-            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
             $this->strength = $strengthWithoutMalusFromLoad->add(
                 $this->tables->getWeightTable()->getMalusFromLoad($strengthWithoutMalusFromLoad, $this->cargoWeight)
             );
@@ -162,7 +166,6 @@ class CurrentProperties extends StrictObject implements BaseProperties
     private function getStrengthWithoutMalusFromLoad(): Strength
     {
         if ($this->strengthWithoutMalusFromLoad === null) {
-            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
             $this->strengthWithoutMalusFromLoad = $this->propertiesByLevels->getStrength()
                 ->add($this->health->getStrengthMalusFromAfflictions());
         }
@@ -194,8 +197,8 @@ class CurrentProperties extends StrictObject implements BaseProperties
     public function getStrengthOfOffhand(): Strength
     {
         if ($this->strengthForOffhandOnly === null) {
-            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-            $this->strengthForOffhandOnly = $this->getStrength()->sub(2); // offhand has a malus to strength (try to carry you purchase in offhand sometimes...)
+            // offhand has a malus to strength (try to carry you purchase in offhand sometimes...)
+            $this->strengthForOffhandOnly = $this->getStrength()->sub(2);
         }
 
         return $this->strengthForOffhandOnly;
@@ -207,7 +210,6 @@ class CurrentProperties extends StrictObject implements BaseProperties
     public function getAgility(): Agility
     {
         if ($this->agility === null) {
-            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
             $this->agility = $this->propertiesByLevels->getAgility()->add($this->getAgilityTotalMalus());
         }
 
@@ -221,20 +223,17 @@ class CurrentProperties extends StrictObject implements BaseProperties
     private function getAgilityTotalMalus(): int
     {
         $agilityMalus = 0;
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        $agilityMalus += $this->tables->getArmourer()->getAgilityMalusByStrengthWithArmor(
+        $agilityMalus += $this->armourer->getAgilityMalusByStrengthWithArmor(
             $this->wornBodyArmor,
             $this->getStrength(),
             $this->getSize()
         );
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
-        $agilityMalus += $this->tables->getArmourer()->getAgilityMalusByStrengthWithArmor(
+        $agilityMalus += $this->armourer->getAgilityMalusByStrengthWithArmor(
             $this->wornHelm,
             $this->getStrength(),
             $this->getSize()
         );
         $agilityMalus += $this->health->getAgilityMalusFromAfflictions();
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
         $agilityMalus += $this->tables->getWeightTable()->getMalusFromLoad(
             $this->getStrengthWithoutMalusFromLoad(),
             $this->cargoWeight
@@ -249,7 +248,6 @@ class CurrentProperties extends StrictObject implements BaseProperties
     public function getKnack(): Knack
     {
         if ($this->knack === null) {
-            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
             $this->knack = $this->propertiesByLevels->getKnack()
                 ->add($this->health->getKnackMalusFromAfflictions())
                 ->add($this->tables->getWeightTable()->getMalusFromLoad(
@@ -267,7 +265,6 @@ class CurrentProperties extends StrictObject implements BaseProperties
     public function getWill(): Will
     {
         if ($this->will === null) {
-            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
             $this->will = $this->propertiesByLevels->getWill()->add($this->health->getWillMalusFromAfflictions());
         }
 
@@ -280,7 +277,6 @@ class CurrentProperties extends StrictObject implements BaseProperties
     public function getIntelligence(): Intelligence
     {
         if ($this->intelligence === null) {
-            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
             $this->intelligence = $this->propertiesByLevels->getIntelligence()
                 ->add($this->health->getIntelligenceMalusFromAfflictions());
         }
@@ -294,7 +290,6 @@ class CurrentProperties extends StrictObject implements BaseProperties
     public function getCharisma(): Charisma
     {
         if ($this->charisma === null) {
-            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
             $this->charisma = $this->propertiesByLevels->getCharisma()->add($this->health->getCharismaMalusFromAfflictions());
         }
 
@@ -374,21 +369,18 @@ class CurrentProperties extends StrictObject implements BaseProperties
     /**
      * @param RemarkableSenseCode $usedRemarkableSense
      * @return AbstractDerivedProperty|Senses
-     * @throws \DrdPlus\Health\Exceptions\NeedsToRollAgainstMalusFirst
+     * @throws \DrdPlus\Health\Exceptions\NeedsToRollAgainstMalusFromWoundsFirst
      */
     public function getSenses(RemarkableSenseCode $usedRemarkableSense = null)
     {
-        if (!array_key_exists('without_remarkable_sense', $this->senses)) {
-            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+        if (!\array_key_exists('without_remarkable_sense', $this->senses)) {
             $this->senses['without_remarkable_sense'] = $this->createSensesWithoutRemarkableOneUsed();
         }
         if ($usedRemarkableSense === null) {
             return $this->senses['without_remarkable_sense'];
         }
-        if (!array_key_exists($usedRemarkableSense->getValue(), $this->senses)) {
-            /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
+        if (!\array_key_exists($usedRemarkableSense->getValue(), $this->senses)) {
             if (ToString::toString($this->race->getRemarkableSense($this->tables)) === $usedRemarkableSense->getValue()) {
-                /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
                 $this->senses[$usedRemarkableSense->getValue()] = $this->senses['without_remarkable_sense']->add(1);
             } else {
                 $this->senses[$usedRemarkableSense->getValue()] = $this->senses['without_remarkable_sense'];
@@ -410,7 +402,6 @@ class CurrentProperties extends StrictObject implements BaseProperties
             $this->tables
         );
 
-        /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
         return $baseSenses->add(
             $this->health->getSignificantMalusFromPains($this->getWoundBoundary())
         );

@@ -1,4 +1,6 @@
 <?php
+declare(strict_types=1);
+
 namespace DrdPlus\Tests\CurrentProperties;
 
 use DrdPlus\Codes\Armaments\BodyArmorCode;
@@ -31,19 +33,20 @@ use DrdPlus\Properties\Derived\WoundBoundary;
 use DrdPlus\PropertiesByLevels\PropertiesByLevels;
 use DrdPlus\Races\Humans\CommonHuman;
 use DrdPlus\Races\Race;
-use DrdPlus\Tables\Armaments\Armourer;
+use DrdPlus\Armourer\Armourer;
 use DrdPlus\Tables\Measurements\Weight\Weight;
 use DrdPlus\Tables\Measurements\Weight\WeightTable;
 use DrdPlus\Tables\Races\RacesTable;
 use DrdPlus\Tables\Tables;
 use Granam\Tests\Tools\TestWithMockery;
+use Mockery\MockInterface;
 
 class CurrentPropertiesTest extends TestWithMockery
 {
     /**
      * @test
      */
-    public function I_can_use_it()
+    public function I_can_use_it(): void
     {
         // strength
         $propertiesByLevels = $this->createPropertiesByLevels();
@@ -70,7 +73,8 @@ class CurrentPropertiesTest extends TestWithMockery
         $propertiesByLevels->shouldReceive('getAgility')->andReturn($agilityWithoutMaluses = $this->mockery(Agility::class));
         $bodyArmorCode = $this->createBodyArmorCode();
         $helmCode = $this->createHelmCode();
-        $tables->shouldReceive('getArmourer')->andReturn($armourer = $this->mockery(Armourer::class));
+        /** @var Armourer|MockInterface $armourer */
+        $armourer = $this->mockery(Armourer::class);
         $size = $this->mockery(Size::class);
         $armourer->shouldReceive('canUseArmament')->with($bodyArmorCode, $strength, $size)->andReturn(true);
         $armourer->shouldReceive('canUseArmament')->with($helmCode, $strength, $size)->andReturn(true);
@@ -127,7 +131,8 @@ class CurrentPropertiesTest extends TestWithMockery
             $bodyArmorCode,
             $helmCode,
             $cargoWeight,
-            $tables
+            $tables,
+            $armourer
         );
 
         $this->I_can_get_current_properties(
@@ -412,7 +417,8 @@ class CurrentPropertiesTest extends TestWithMockery
 
         $bodyArmorCode = $this->createBodyArmorCode();
         $helmCode = $this->createHelmCode();
-        $tables->shouldReceive('getArmourer')->andReturn($armourer = $this->mockery(Armourer::class));
+        /** @var Armourer|MockInterface $armourer */
+        $armourer = $this->mockery(Armourer::class);
         $size = $this->mockery(Size::class);
         $armourer->shouldReceive('canUseArmament')->with($bodyArmorCode, $strength, $size)->andReturn($canUseArmor);
         $armourer->shouldReceive('canUseArmament')->with($helmCode, $strength, $size)->andReturn($canUseHelm);
@@ -426,7 +432,8 @@ class CurrentPropertiesTest extends TestWithMockery
             $bodyArmorCode,
             $helmCode,
             $cargoWeight,
-            $tables
+            $tables,
+            $armourer
         );
     }
 
