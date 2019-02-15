@@ -10,11 +10,11 @@
   },
   "require": {
     "php": ">=7.1",
-    "drdplus/skills": "^1.0",
-    "drdplus/properties-by-levels": "^1.0",
-    "drdplus/health": "^1.0",
-    "drdplus/fight-properties": "^1.0",
-    "drdplus/armourer": "^1.0"
+    "drdplus/skills": "~2.0",
+    "drdplus/properties-by-levels": "~2.0",
+    "drdplus/health": "~2.0",
+    "drdplus/fight-properties": "~2.0",
+    "drdplus/armourer": "~2.0"
   },
   "require-dev": {
     "phpunit/phpunit": "~7.0",
