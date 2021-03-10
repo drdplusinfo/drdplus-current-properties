@@ -1,8 +1,14 @@
-<?php
-declare(strict_types=1);
+<?php declare(strict_types=1);
 
 namespace DrdPlus\Tests\CurrentProperties;
 
+use DrdPlus\Armourer\Armourer;
+use DrdPlus\BaseProperties\Agility;
+use DrdPlus\BaseProperties\Charisma;
+use DrdPlus\BaseProperties\Intelligence;
+use DrdPlus\BaseProperties\Knack;
+use DrdPlus\BaseProperties\Strength;
+use DrdPlus\BaseProperties\Will;
 use DrdPlus\Codes\Armaments\BodyArmorCode;
 use DrdPlus\Codes\Armaments\HelmCode;
 use DrdPlus\Codes\Properties\RemarkableSenseCode;
@@ -10,17 +16,11 @@ use DrdPlus\Codes\RaceCode;
 use DrdPlus\Codes\SubRaceCode;
 use DrdPlus\CurrentProperties\CurrentProperties;
 use DrdPlus\Health\Health;
-use DrdPlus\BaseProperties\Agility;
-use DrdPlus\BaseProperties\Charisma;
-use DrdPlus\BaseProperties\Intelligence;
-use DrdPlus\BaseProperties\Knack;
-use DrdPlus\BaseProperties\Strength;
-use DrdPlus\BaseProperties\Will;
 use DrdPlus\Properties\Body\Age;
+use DrdPlus\Properties\Body\BodyWeightInKg;
 use DrdPlus\Properties\Body\Height;
 use DrdPlus\Properties\Body\HeightInCm;
 use DrdPlus\Properties\Body\Size;
-use DrdPlus\Properties\Body\BodyWeightInKg;
 use DrdPlus\Properties\Derived\Beauty;
 use DrdPlus\Properties\Derived\Dangerousness;
 use DrdPlus\Properties\Derived\Dignity;
@@ -33,7 +33,6 @@ use DrdPlus\Properties\Derived\WoundBoundary;
 use DrdPlus\PropertiesByLevels\PropertiesByLevels;
 use DrdPlus\Races\Humans\CommonHuman;
 use DrdPlus\Races\Race;
-use DrdPlus\Armourer\Armourer;
 use DrdPlus\Tables\Measurements\Weight\Weight;
 use DrdPlus\Tables\Measurements\Weight\WeightTable;
 use DrdPlus\Tables\Races\RacesTable;
@@ -161,6 +160,141 @@ class CurrentPropertiesTest extends TestWithMockery
     }
 
     /**
+     * @return \Mockery\MockInterface|PropertiesByLevels
+     */
+    private function createPropertiesByLevels()
+    {
+        return $this->mockery(PropertiesByLevels::class);
+    }
+
+    /**
+     * @return \Mockery\MockInterface|Health
+     */
+    private function createHealth()
+    {
+        return $this->mockery(Health::class);
+    }
+
+    /**
+     * @param $value
+     * @return \Mockery\MockInterface|Strength
+     */
+    private function createStrength(int $value = null)
+    {
+        $strength = $this->mockery(Strength::class);
+        if ($value !== null) {
+            $strength->shouldReceive('getValue')
+                ->andReturn($value);
+        }
+
+        return $strength;
+    }
+
+    /**
+     * @return \Mockery\MockInterface|Tables
+     */
+    private function createTables()
+    {
+        return $this->mockery(Tables::class);
+    }
+
+    /**
+     * @return \Mockery\MockInterface|Weight
+     */
+    private function createCargoWeight()
+    {
+        return $this->mockery(Weight::class);
+    }
+
+    /**
+     * @return \Mockery\MockInterface|BodyArmorCode
+     */
+    private function createBodyArmorCode()
+    {
+        return $this->mockery(BodyArmorCode::class);
+    }
+
+    /**
+     * @return \Mockery\MockInterface|HelmCode
+     */
+    private function createHelmCode()
+    {
+        return $this->mockery(HelmCode::class);
+    }
+
+    /**
+     * @param $value
+     * @return \Mockery\MockInterface|Agility
+     */
+    private function createAgility($value)
+    {
+        $agility = $this->mockery(Agility::class);
+        $agility->shouldReceive('getValue')
+            ->andReturn($value);
+
+        return $agility;
+    }
+
+    /**
+     * @param $value
+     * @return \Mockery\MockInterface|HeightInCm
+     */
+    private function createHeightInCm($value = null)
+    {
+        $heightInCm = $this->mockery(HeightInCm::class);
+        if ($value !== null) {
+            $heightInCm->shouldReceive('getValue')
+                ->andReturn($value);
+        }
+
+        return $heightInCm;
+    }
+
+    /**
+     * @param $value
+     * @return \Mockery\MockInterface|Height
+     */
+    private function createHeight($value)
+    {
+        $height = $this->mockery(Height::class);
+        $height->shouldReceive('getValue')
+            ->andReturn($value);
+
+        return $height;
+    }
+
+    /**
+     * @param RaceCode $raceCode
+     * @param SubRaceCode $subRaceCode
+     * @return Race|\Mockery\MockInterface
+     */
+    private function createRace(RaceCode $raceCode, SubRaceCode $subRaceCode)
+    {
+        $race = $this->mockery(Race::class);
+        $race->shouldReceive('getRaceCode')
+            ->andReturn($raceCode);
+        $race->shouldReceive('getSubraceCode')
+            ->andReturn($subRaceCode);
+
+        return $race;
+    }
+
+    /**
+     * @param Race $race
+     * @param int $raceSensesValue
+     * @return \Mockery\MockInterface|RacesTable
+     */
+    private function createRacesTable(Race $race, int $raceSensesValue)
+    {
+        $racesTable = $this->mockery(RacesTable::class);
+        $racesTable->shouldReceive('getSenses')
+            ->with($race->getRaceCode(), $race->getSubraceCode())
+            ->andReturn($raceSensesValue);
+
+        return $racesTable;
+    }
+
+    /**
      * @param Tables $tables
      * @param CurrentProperties $currentProperties
      * @param Race|\Mockery\MockInterface $race
@@ -204,7 +338,7 @@ class CurrentPropertiesTest extends TestWithMockery
         Size $size,
         WoundBoundary $expectedWoundBoundary,
         FatigueBoundary $expectedFatigueBoundary,
-        $significantMalusFromPains
+        int $significantMalusFromPains
     )
     {
         // base properties
@@ -265,141 +399,6 @@ class CurrentPropertiesTest extends TestWithMockery
         $expectedDignity = Dignity::getIt($expectedIntelligence, $expectedWill, $expectedCharisma);
         self::assertInstanceOf(Dignity::class, $currentProperties->getDignity());
         self::assertSame($expectedDignity->getValue(), $currentProperties->getDignity()->getValue());
-    }
-
-    /**
-     * @param RaceCode $raceCode
-     * @param SubRaceCode $subRaceCode
-     * @return Race|\Mockery\MockInterface
-     */
-    private function createRace(RaceCode $raceCode, SubRaceCode $subRaceCode)
-    {
-        $race = $this->mockery(Race::class);
-        $race->shouldReceive('getRaceCode')
-            ->andReturn($raceCode);
-        $race->shouldReceive('getSubraceCode')
-            ->andReturn($subRaceCode);
-
-        return $race;
-    }
-
-    /**
-     * @param Race $race
-     * @param int $raceSensesValue
-     * @return \Mockery\MockInterface|RacesTable
-     */
-    private function createRacesTable(Race $race, $raceSensesValue)
-    {
-        $racesTable = $this->mockery(RacesTable::class);
-        $racesTable->shouldReceive('getSenses')
-            ->with($race->getRaceCode(), $race->getSubraceCode())
-            ->andReturn($raceSensesValue);
-
-        return $racesTable;
-    }
-
-    /**
-     * @param $value
-     * @return \Mockery\MockInterface|Strength
-     */
-    private function createStrength(int $value = null)
-    {
-        $strength = $this->mockery(Strength::class);
-        if ($value !== null) {
-            $strength->shouldReceive('getValue')
-                ->andReturn($value);
-        }
-
-        return $strength;
-    }
-
-    /**
-     * @param $value
-     * @return \Mockery\MockInterface|Agility
-     */
-    private function createAgility($value)
-    {
-        $agility = $this->mockery(Agility::class);
-        $agility->shouldReceive('getValue')
-            ->andReturn($value);
-
-        return $agility;
-    }
-
-    /**
-     * @param $value
-     * @return \Mockery\MockInterface|Height
-     */
-    private function createHeight($value)
-    {
-        $height = $this->mockery(Height::class);
-        $height->shouldReceive('getValue')
-            ->andReturn($value);
-
-        return $height;
-    }
-
-    /**
-     * @param $value
-     * @return \Mockery\MockInterface|HeightInCm
-     */
-    private function createHeightInCm($value = null)
-    {
-        $heightInCm = $this->mockery(HeightInCm::class);
-        if ($value !== null) {
-            $heightInCm->shouldReceive('getValue')
-                ->andReturn($value);
-        }
-
-        return $heightInCm;
-    }
-
-    /**
-     * @return \Mockery\MockInterface|PropertiesByLevels
-     */
-    private function createPropertiesByLevels()
-    {
-        return $this->mockery(PropertiesByLevels::class);
-    }
-
-    /**
-     * @return \Mockery\MockInterface|Health
-     */
-    private function createHealth()
-    {
-        return $this->mockery(Health::class);
-    }
-
-    /**
-     * @return \Mockery\MockInterface|BodyArmorCode
-     */
-    private function createBodyArmorCode()
-    {
-        return $this->mockery(BodyArmorCode::class);
-    }
-
-    /**
-     * @return \Mockery\MockInterface|HelmCode
-     */
-    private function createHelmCode()
-    {
-        return $this->mockery(HelmCode::class);
-    }
-
-    /**
-     * @return \Mockery\MockInterface|Weight
-     */
-    private function createCargoWeight()
-    {
-        return $this->mockery(Weight::class);
-    }
-
-    /**
-     * @return \Mockery\MockInterface|Tables
-     */
-    private function createTables()
-    {
-        return $this->mockery(Tables::class);
     }
 
     /**

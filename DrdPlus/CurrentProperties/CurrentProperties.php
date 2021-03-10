@@ -1,24 +1,24 @@
-<?php
-declare(strict_types=1);
+<?php declare(strict_types=1);
 
 namespace DrdPlus\CurrentProperties;
 
-use DrdPlus\Codes\Armaments\ArmamentCode;
-use DrdPlus\Codes\Armaments\BodyArmorCode;
-use DrdPlus\Codes\Armaments\HelmCode;
-use DrdPlus\Codes\Properties\RemarkableSenseCode;
-use DrdPlus\Health\Health;
+use DrdPlus\Armourer\Armourer;
 use DrdPlus\BaseProperties\Agility;
 use DrdPlus\BaseProperties\Charisma;
 use DrdPlus\BaseProperties\Intelligence;
 use DrdPlus\BaseProperties\Knack;
 use DrdPlus\BaseProperties\Strength;
 use DrdPlus\BaseProperties\Will;
+use DrdPlus\Codes\Armaments\ArmamentCode;
+use DrdPlus\Codes\Armaments\BodyArmorCode;
+use DrdPlus\Codes\Armaments\HelmCode;
+use DrdPlus\Codes\Properties\RemarkableSenseCode;
+use DrdPlus\Health\Health;
 use DrdPlus\Properties\Body\Age;
+use DrdPlus\Properties\Body\BodyWeightInKg;
 use DrdPlus\Properties\Body\Height;
 use DrdPlus\Properties\Body\HeightInCm;
 use DrdPlus\Properties\Body\Size;
-use DrdPlus\Properties\Body\BodyWeightInKg;
 use DrdPlus\Properties\Combat\BaseProperties;
 use DrdPlus\Properties\Derived\Beauty;
 use DrdPlus\Properties\Derived\Dangerousness;
@@ -32,7 +32,6 @@ use DrdPlus\Properties\Derived\Toughness;
 use DrdPlus\Properties\Derived\WoundBoundary;
 use DrdPlus\PropertiesByLevels\PropertiesByLevels;
 use DrdPlus\Races\Race;
-use DrdPlus\Armourer\Armourer;
 use DrdPlus\Tables\Measurements\Weight\Weight;
 use DrdPlus\Tables\Tables;
 use Granam\Scalar\Tools\ToString;
@@ -174,6 +173,14 @@ class CurrentProperties extends StrictObject implements BaseProperties
     }
 
     /**
+     * @return Size
+     */
+    public function getSize(): Size
+    {
+        return $this->propertiesByLevels->getSize();
+    }
+
+    /**
      * This is the stable value, affected only by levels, not by a current weakness or a load.
      *
      * @return Strength
@@ -202,6 +209,58 @@ class CurrentProperties extends StrictObject implements BaseProperties
         }
 
         return $this->strengthForOffhandOnly;
+    }
+
+    /**
+     * @return BodyWeightInKg
+     */
+    public function getWeightInKg(): BodyWeightInKg
+    {
+        return $this->propertiesByLevels->getWeightInKg();
+    }
+
+    /**
+     * @return HeightInCm
+     */
+    public function getHeightInCm(): HeightInCm
+    {
+        return $this->propertiesByLevels->getHeightInCm();
+    }
+
+    /**
+     * @return Age
+     */
+    public function getAge(): Age
+    {
+        return $this->propertiesByLevels->getAge();
+    }
+
+    /**
+     * @return Toughness
+     */
+    public function getToughness(): Toughness
+    {
+        return $this->propertiesByLevels->getToughness();
+    }
+
+    /**
+     * @return Endurance
+     */
+    public function getEndurance(): Endurance
+    {
+        return $this->propertiesByLevels->getEndurance();
+    }
+
+    /**
+     * @return Speed
+     */
+    public function getSpeed(): Speed
+    {
+        if ($this->speed === null) {
+            $this->speed = Speed::getIt($this->getStrength(), $this->getAgility(), $this->getHeight());
+        }
+
+        return $this->speed;
     }
 
     /**
@@ -243,76 +302,6 @@ class CurrentProperties extends StrictObject implements BaseProperties
     }
 
     /**
-     * @return Knack
-     */
-    public function getKnack(): Knack
-    {
-        if ($this->knack === null) {
-            $this->knack = $this->propertiesByLevels->getKnack()
-                ->add($this->health->getKnackMalusFromAfflictions())
-                ->add($this->tables->getWeightTable()->getMalusFromLoad(
-                    $this->getStrengthWithoutMalusFromLoad(),
-                    $this->cargoWeight
-                ));
-        }
-
-        return $this->knack;
-    }
-
-    /**
-     * @return Will
-     */
-    public function getWill(): Will
-    {
-        if ($this->will === null) {
-            $this->will = $this->propertiesByLevels->getWill()->add($this->health->getWillMalusFromAfflictions());
-        }
-
-        return $this->will;
-    }
-
-    /**
-     * @return Intelligence
-     */
-    public function getIntelligence(): Intelligence
-    {
-        if ($this->intelligence === null) {
-            $this->intelligence = $this->propertiesByLevels->getIntelligence()
-                ->add($this->health->getIntelligenceMalusFromAfflictions());
-        }
-
-        return $this->intelligence;
-    }
-
-    /**
-     * @return Charisma
-     */
-    public function getCharisma(): Charisma
-    {
-        if ($this->charisma === null) {
-            $this->charisma = $this->propertiesByLevels->getCharisma()->add($this->health->getCharismaMalusFromAfflictions());
-        }
-
-        return $this->charisma;
-    }
-
-    /**
-     * @return BodyWeightInKg
-     */
-    public function getWeightInKg(): BodyWeightInKg
-    {
-        return $this->propertiesByLevels->getWeightInKg();
-    }
-
-    /**
-     * @return HeightInCm
-     */
-    public function getHeightInCm(): HeightInCm
-    {
-        return $this->propertiesByLevels->getHeightInCm();
-    }
-
-    /**
      * Bonus of height in fact - usable for Fight and Speed
      *
      * @return Height
@@ -323,51 +312,7 @@ class CurrentProperties extends StrictObject implements BaseProperties
     }
 
     /**
-     * @return Age
-     */
-    public function getAge(): Age
-    {
-        return $this->propertiesByLevels->getAge();
-    }
-
-    /**
-     * @return Toughness
-     */
-    public function getToughness(): Toughness
-    {
-        return $this->propertiesByLevels->getToughness();
-    }
-
-    /**
-     * @return Endurance
-     */
-    public function getEndurance(): Endurance
-    {
-        return $this->propertiesByLevels->getEndurance();
-    }
-
-    /**
-     * @return Size
-     */
-    public function getSize(): Size
-    {
-        return $this->propertiesByLevels->getSize();
-    }
-
-    /**
-     * @return Speed
-     */
-    public function getSpeed(): Speed
-    {
-        if ($this->speed === null) {
-            $this->speed = Speed::getIt($this->getStrength(), $this->getAgility(), $this->getHeight());
-        }
-
-        return $this->speed;
-    }
-
-    /**
-     * @param RemarkableSenseCode $usedRemarkableSense
+     * @param RemarkableSenseCode|null $usedRemarkableSense
      * @return AbstractDerivedProperty|Senses
      * @throws \DrdPlus\Health\Exceptions\NeedsToRollAgainstMalusFromWoundsFirst
      */
@@ -408,6 +353,33 @@ class CurrentProperties extends StrictObject implements BaseProperties
     }
 
     /**
+     * @return Knack
+     */
+    public function getKnack(): Knack
+    {
+        if ($this->knack === null) {
+            $this->knack = $this->propertiesByLevels->getKnack()
+                ->add($this->health->getKnackMalusFromAfflictions())
+                ->add($this->tables->getWeightTable()->getMalusFromLoad(
+                    $this->getStrengthWithoutMalusFromLoad(),
+                    $this->cargoWeight
+                ));
+        }
+
+        return $this->knack;
+    }
+
+    /**
+     * Wound boundary is not affected by temporary maluses, therefore is same as given by current level.
+     *
+     * @return WoundBoundary
+     */
+    public function getWoundBoundary(): WoundBoundary
+    {
+        return $this->propertiesByLevels->getWoundBoundary();
+    }
+
+    /**
      * @return Beauty
      */
     public function getBeauty(): Beauty
@@ -417,6 +389,18 @@ class CurrentProperties extends StrictObject implements BaseProperties
         }
 
         return $this->beauty;
+    }
+
+    /**
+     * @return Charisma
+     */
+    public function getCharisma(): Charisma
+    {
+        if ($this->charisma === null) {
+            $this->charisma = $this->propertiesByLevels->getCharisma()->add($this->health->getCharismaMalusFromAfflictions());
+        }
+
+        return $this->charisma;
     }
 
     /**
@@ -432,6 +416,18 @@ class CurrentProperties extends StrictObject implements BaseProperties
     }
 
     /**
+     * @return Will
+     */
+    public function getWill(): Will
+    {
+        if ($this->will === null) {
+            $this->will = $this->propertiesByLevels->getWill()->add($this->health->getWillMalusFromAfflictions());
+        }
+
+        return $this->will;
+    }
+
+    /**
      * @return Dignity
      */
     public function getDignity(): Dignity
@@ -444,13 +440,16 @@ class CurrentProperties extends StrictObject implements BaseProperties
     }
 
     /**
-     * Wound boundary is not affected by temporary maluses, therefore is same as given by current level.
-     *
-     * @return WoundBoundary
+     * @return Intelligence
      */
-    public function getWoundBoundary(): WoundBoundary
+    public function getIntelligence(): Intelligence
     {
-        return $this->propertiesByLevels->getWoundBoundary();
+        if ($this->intelligence === null) {
+            $this->intelligence = $this->propertiesByLevels->getIntelligence()
+                ->add($this->health->getIntelligenceMalusFromAfflictions());
+        }
+
+        return $this->intelligence;
     }
 
     /**
