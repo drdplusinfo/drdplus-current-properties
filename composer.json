@@ -5,7 +5,8 @@
     "description": "Final properties including battle statistics, current afflictions and boosts and by first and next levels of them for Drd+",
     "autoload": {
         "psr-4": {
-            "DrdPlus\\": "DrdPlus/"
+            "DrdPlus\\CurrentProperties\\": "CurrentProperties",
+            "DrdPlus\\Tests\\": "tests"
         }
     },
     "require": {
