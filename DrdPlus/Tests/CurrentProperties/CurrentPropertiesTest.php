@@ -38,7 +38,7 @@ use DrdPlus\Tables\Measurements\Weight\Weight;
 use DrdPlus\Tables\Measurements\Weight\WeightTable;
 use DrdPlus\Tables\Races\RacesTable;
 use DrdPlus\Tables\Tables;
-use Granam\Tests\Tools\TestWithMockery;
+use Granam\TestWithMockery\TestWithMockery;
 use Mockery\MockInterface;
 
 class CurrentPropertiesTest extends TestWithMockery
@@ -54,10 +54,10 @@ class CurrentPropertiesTest extends TestWithMockery
         $health->shouldReceive('getStrengthMalusFromAfflictions')
             ->andReturn($strengthMalusFromAfflictions = -12345);
         $propertiesByLevels->shouldReceive('getStrength')
-            ->andReturn($baseStrength = $this->mockery(Strength::class));
+            ->andReturn($baseStrength = $this->createStrength());
         $baseStrength->shouldReceive('add')
             ->with($strengthMalusFromAfflictions)
-            ->andReturn($strengthWithoutMalusFromLoad = $this->mockery(Strength::class));
+            ->andReturn($strengthWithoutMalusFromLoad = $this->createStrength());
         $tables = $this->createTables();
         $tables->shouldReceive('getWeightTable')->andReturn($weightTable = $this->mockery(WeightTable::class));
         $cargoWeight = $this->createCargoWeight();
@@ -67,7 +67,7 @@ class CurrentPropertiesTest extends TestWithMockery
         $strengthWithoutMalusFromLoad->shouldReceive('add')
             ->with($malusFromLoad)
             ->andReturn($strength = $this->createStrength(2233441));
-        $strength->shouldReceive('sub')->with(2)->andReturn($strengthForOffhand = $this->mockery(Strength::class));
+        $strength->shouldReceive('sub')->with(2)->andReturn($strengthForOffhand = $this->createStrength());
 
         // agility
         $propertiesByLevels->shouldReceive('getAgility')->andReturn($agilityWithoutMaluses = $this->mockery(Agility::class));
@@ -112,7 +112,7 @@ class CurrentPropertiesTest extends TestWithMockery
         $expectedCharisma = $baseCharisma->add($charismaMalusFromAfflictions);
 
         $propertiesByLevels->shouldReceive('getWeightInKg')->andReturn($weightInKg = $this->mockery(BodyWeightInKg::class));
-        $propertiesByLevels->shouldReceive('getHeightInCm')->andReturn($heightInCm = $this->mockery(HeightInCm::class));
+        $propertiesByLevels->shouldReceive('getHeightInCm')->andReturn($heightInCm = $this->createHeightInCm());
         $propertiesByLevels->shouldReceive('getHeight')->andReturn($height = $this->createHeight(123789));
         $propertiesByLevels->shouldReceive('getAge')->andReturn($age = $this->mockery(Age::class));
         $propertiesByLevels->shouldReceive('getToughness')->andReturn($toughness = $this->mockery(Toughness::class));
@@ -302,11 +302,13 @@ class CurrentPropertiesTest extends TestWithMockery
      * @param $value
      * @return \Mockery\MockInterface|Strength
      */
-    private function createStrength($value)
+    private function createStrength(int $value = null)
     {
         $strength = $this->mockery(Strength::class);
-        $strength->shouldReceive('getValue')
-            ->andReturn($value);
+        if ($value !== null) {
+            $strength->shouldReceive('getValue')
+                ->andReturn($value);
+        }
 
         return $strength;
     }
@@ -335,6 +337,21 @@ class CurrentPropertiesTest extends TestWithMockery
             ->andReturn($value);
 
         return $height;
+    }
+
+    /**
+     * @param $value
+     * @return \Mockery\MockInterface|HeightInCm
+     */
+    private function createHeightInCm($value = null)
+    {
+        $heightInCm = $this->mockery(HeightInCm::class);
+        if ($value !== null) {
+            $heightInCm->shouldReceive('getValue')
+                ->andReturn($value);
+        }
+
+        return $heightInCm;
     }
 
     /**
@@ -387,7 +404,6 @@ class CurrentPropertiesTest extends TestWithMockery
 
     /**
      * @test
-     * @expectedException \DrdPlus\CurrentProperties\Exceptions\CanNotUseArmamentBecauseOfMissingStrength
      * @dataProvider provideNotBearableArmorOrHelm
      * @param $canUseArmor
      * @param $canUseHelm
@@ -413,7 +429,7 @@ class CurrentPropertiesTest extends TestWithMockery
         $strengthWithoutMalusFromLoad->shouldReceive('add')
             ->with($malusFromLoad)
             ->andReturn($strength = $this->createStrength(2233441));
-        $strength->shouldReceive('sub')->with(2)->andReturn($strengthForOffhand = $this->mockery(Strength::class));
+        $strength->shouldReceive('sub')->with(2)->andReturn($strengthForOffhand = $this->createStrength());
 
         $bodyArmorCode = $this->createBodyArmorCode();
         $helmCode = $this->createHelmCode();
@@ -425,6 +441,7 @@ class CurrentPropertiesTest extends TestWithMockery
 
         $propertiesByLevels->shouldReceive('getSize')->andReturn($size);
 
+        $this->expectException(\DrdPlus\CurrentProperties\Exceptions\CanNotUseArmamentBecauseOfMissingStrength::class);
         new CurrentProperties(
             $propertiesByLevels,
             $health,
